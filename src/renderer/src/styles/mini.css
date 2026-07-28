@@ -84,6 +84,11 @@
   line-height: 1;
   flex: none;
 }
+/* Expanded: the time anchors the header (title-bar style) since the summary and
+   the round button move out; a larger size balances the row. */
+.mini--expanded .mini__time {
+  font-size: 1.5rem;
+}
 
 .mini__summary {
   flex: 1;
@@ -143,4 +148,10 @@
   /* Match the compact select's padding so the input text and the select text
      line up exactly. */
   padding: var(--space-1) var(--space-2);
+}
+
+/* Full-width primary start/stop button in the expanded editor. */
+.mini__primary {
+  width: 100%;
+  margin-top: var(--space-1);
 }
