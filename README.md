@@ -1,9 +1,28 @@
 # Toggl Traction
 
+[![CI](https://github.com/danielroy96/toggl-traction/actions/workflows/ci.yml/badge.svg)](https://github.com/danielroy96/toggl-traction/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/danielroy96/toggl-traction)](https://github.com/danielroy96/toggl-traction/releases/latest)
+
 An accessible, cross-platform desktop time tracker (Electron + React + TypeScript)
 that talks to the [Toggl Track](https://track.toggl.com) API. Built with a focus
 on **accessibility**, a **reliable always-on-top mini timer**, and **robust
 start/stop** behaviour.
+
+## Download
+
+Grab an installer from the [latest release](https://github.com/danielroy96/toggl-traction/releases/latest):
+
+- **macOS** — `.dmg` (or `.zip`)
+- **Windows** — `Toggl-Traction-Setup-*.exe` (or `.zip`)
+- **Linux** — `.AppImage` or `.deb`
+
+Installers are built for all three platforms by the [release workflow](.github/workflows/release.yml)
+on each `v*` tag. Builds are currently unsigned, so the OS may warn on first launch.
+
+## Contributing
+
+`main` is protected: every change lands via a pull request and CI (typecheck,
+WCAG contrast, timer tests, build) must pass before merging.
 
 ## Features
 
