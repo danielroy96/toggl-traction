@@ -36,10 +36,14 @@
 }
 
 /* Natural-height content wrapper the renderer measures to auto-size the window,
-   so there is never empty space at the bottom. */
+   so there is never empty space at the bottom. `flex: none` is essential: as a
+   flex child of `.mini` (height:100vh, overflow:hidden) it would otherwise be
+   shrunk to the current — still small — window height at the moment we measure
+   it on expand, reporting too short a height and clipping the content. */
 .mini__content {
   display: flex;
   flex-direction: column;
+  flex: none;
 }
 
 .mini__header {
