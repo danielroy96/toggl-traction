@@ -151,7 +151,6 @@ export function MiniTimer(): JSX.Element {
               </span>
             </span>
           )}
-          {expanded && <span className="mini__summary mini__summary--spacer" aria-hidden="true" />}
         </div>
 
         <button
@@ -163,22 +162,18 @@ export function MiniTimer(): JSX.Element {
           <Chevron expanded={expanded} />
         </button>
 
-        <button
-          className={`btn-round ${running ? 'btn-round--stop' : 'btn-round--start'} mini__btn`}
-          onClick={onToggleTimer}
-          disabled={timer.pending}
-          aria-label={running ? 'Stop timer' : 'Start timer'}
-        >
-          {running ? (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <rect x="6" y="6" width="12" height="12" rx="2" />
-            </svg>
-          ) : (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-          )}
-        </button>
+        {/* Collapsed: quick round toggle in the header. Expanded: a full-width
+            primary button lives at the bottom instead (see below). */}
+        {!expanded && (
+          <button
+            className={`btn-round ${running ? 'btn-round--stop' : 'btn-round--start'} mini__btn`}
+            onClick={onToggleTimer}
+            disabled={timer.pending}
+            aria-label={running ? 'Stop timer' : 'Start timer'}
+          >
+            <TimerIcon running={!!running} />
+          </button>
+        )}
       </div>
 
       {expanded && (
@@ -201,10 +196,30 @@ export function MiniTimer(): JSX.Element {
             compact
             ariaLabel="Project and task for this timer"
           />
+          <button
+            className={`btn ${running ? 'btn--danger' : 'btn--success'} mini__primary`}
+            onClick={onToggleTimer}
+            disabled={timer.pending}
+          >
+            <TimerIcon running={!!running} />
+            {running ? 'Stop timer' : 'Start timer'}
+          </button>
         </div>
       )}
      </div>
     </div>
+  )
+}
+
+function TimerIcon({ running }: { running: boolean }): JSX.Element {
+  return running ? (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <rect x="6" y="6" width="12" height="12" rx="2" />
+    </svg>
+  ) : (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M8 5v14l11-7z" />
+    </svg>
   )
 }
 
