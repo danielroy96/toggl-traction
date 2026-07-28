@@ -1,0 +1,74 @@
+{
+  "name": "toggl-traction",
+  "version": "0.1.0",
+  "description": "An accessible, cross-platform time tracker that talks to Toggl Track",
+  "main": "./out/main/index.js",
+  "author": "Toggl Traction",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/danielroy96/toggl-traction.git"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "start": "electron-vite preview",
+    "build": "electron-vite build",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "package": "electron-vite build && electron-builder --dir",
+    "dist": "electron-vite build && electron-builder",
+    "test": "node scripts/run-tests.mjs",
+    "dev:server": "node scripts/run-dev-server.mjs",
+    "dev:web": "vite --config vite.preview.config.ts",
+    "check:contrast": "node scripts/check-contrast.mjs",
+    "verify": "npm run typecheck && npm run check:contrast && npm run test && npm run build"
+  },
+  "dependencies": {
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.17",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^3.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3"
+  },
+  "build": {
+    "appId": "com.toggltraction.app",
+    "productName": "Toggl Traction",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": ["out/**/*", "package.json"],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": ["dmg", "zip"],
+      "identity": null
+    },
+    "win": {
+      "target": ["nsis", "zip"]
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Utility",
+      "maintainer": "Toggl Traction"
+    },
+    "publish": {
+      "provider": "github"
+    }
+  },
+  "allowScripts": {
+    "electron@33.4.11": true,
+    "esbuild@0.25.12": true,
+    "fsevents@2.3.3": true
+  }
+}

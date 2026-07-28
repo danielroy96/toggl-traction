@@ -1,0 +1,146 @@
+/* Styles for the always-on-top mini timer window. */
+
+.mini-body {
+  background: transparent;
+  overflow: hidden;
+}
+
+.mini {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  /* The whole window is a drag handle... */
+  -webkit-app-region: drag;
+  cursor: grab;
+}
+.mini:active {
+  cursor: grabbing;
+}
+/* ...but interactive controls must opt out so clicks/typing register. */
+.mini button,
+.mini input,
+.mini select,
+.mini .select {
+  -webkit-app-region: no-drag;
+  cursor: pointer;
+}
+.mini input {
+  cursor: text;
+}
+.mini--running {
+  border-color: var(--success);
+}
+
+/* Natural-height content wrapper the renderer measures to auto-size the window,
+   so there is never empty space at the bottom. */
+.mini__content {
+  display: flex;
+  flex-direction: column;
+}
+
+.mini__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+}
+
+/* Time + description/task label. This area is draggable (not a control). */
+.mini__glance {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text);
+  text-align: left;
+}
+
+/* Expand/collapse toggle. */
+.mini__expand {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+}
+.mini__expand:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.mini__time {
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+  flex: none;
+}
+
+.mini__summary {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.mini__desc {
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mini__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mini__dot {
+  width: 0.55rem;
+  height: 0.55rem;
+}
+
+.mini__chevron {
+  flex: none;
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+}
+.mini__chevron--up {
+  transform: rotate(180deg);
+}
+
+.mini__btn {
+  -webkit-app-region: no-drag;
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+/* Expanded editor area. */
+.mini__editor {
+  -webkit-app-region: no-drag;
+  padding: 0 var(--space-2) var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.mini__desc-input {
+  min-height: 2.25rem;
+  font-size: 0.9rem;
+  /* Match the compact select's padding so the input text and the select text
+     line up exactly. */
+  padding: var(--space-1) var(--space-2);
+}

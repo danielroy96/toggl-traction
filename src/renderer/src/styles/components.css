@@ -1,0 +1,312 @@
+/* Reusable, accessible component styles. All interactive targets are at least
+   var(--target-min) (2.75rem = 44px at default scale) in their smallest axis. */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+  padding: 0 var(--space-4);
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  color: var(--text);
+  background: var(--surface-2);
+  transition:
+    background 0.12s ease,
+    transform 0.05s ease;
+}
+.btn:hover {
+  background: var(--surface-hover);
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn[disabled],
+.btn[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn--secondary {
+  border-color: var(--border-strong);
+  background: transparent;
+}
+
+.btn--accent {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+.btn--accent:hover {
+  background: var(--accent-hover);
+}
+
+.btn--success {
+  background: var(--success);
+  color: var(--text-on-accent);
+}
+.btn--success:hover {
+  background: var(--success-hover);
+}
+
+.btn--danger {
+  background: var(--danger);
+  color: var(--text-on-accent);
+}
+.btn--danger:hover {
+  background: var(--danger-hover);
+}
+
+/* Big circular start/stop control used in timer bars. */
+.btn-round {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  flex: none;
+  color: var(--text-on-accent);
+}
+.btn-round--start {
+  background: var(--success);
+}
+.btn-round--start:hover {
+  background: var(--success-hover);
+}
+.btn-round--stop {
+  background: var(--danger);
+}
+.btn-round--stop:hover {
+  background: var(--danger-hover);
+}
+.btn-round[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Icon-only button — still meets the 44px target. */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--target-min);
+  height: var(--target-min);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.icon-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.input,
+.select,
+.textarea {
+  width: 100%;
+  min-height: var(--target-min);
+  padding: var(--space-2) var(--space-3);
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+}
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--text-muted);
+}
+.input:hover,
+.select:hover {
+  border-color: var(--text-muted);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+.field label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.field .hint {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0.15rem var(--space-2);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+}
+
+.project-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  flex: none;
+  /* Border ensures the dot is distinguishable even for low-vision users. */
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+/* Combined project/task picker (used in the full timer bar and the mini timer).
+   Base is full-width so it behaves in a vertical form; the timer bar overrides
+   it to a flexible row item (see .timer-bar .ptpick in app.css). */
+.ptpick {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+.ptpick__trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--target-min);
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+}
+.ptpick__trigger:hover {
+  border-color: var(--text-muted);
+}
+.ptpick__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ptpick__caret {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.ptpick__panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+}
+/* Inline (mini/modal): render in flow so it isn't clipped by a tiny window. */
+.ptpick--inline .ptpick__panel {
+  position: static;
+  margin-top: var(--space-1);
+  box-shadow: none;
+}
+.ptpick__search {
+  width: 100%;
+}
+.ptpick__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 14rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ptpick--inline .ptpick__list {
+  max-height: 10rem;
+}
+.ptpick__opt {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.25rem;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.ptpick__opt--active {
+  background: var(--surface-hover);
+}
+.ptpick__opt-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ptpick__empty {
+  padding: var(--space-2);
+  color: var(--text-muted);
+}
+
+/* Compact trigger for the mini timer (aligns flush with the description input,
+   no leading dot). */
+.ptpick--compact .ptpick__trigger {
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-2);
+  font-size: 0.9rem;
+}
+
+.badge__task {
+  opacity: 0.85;
+}
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  border: 0;
+  margin: var(--space-4) 0;
+}
+
+/* Toast / inline error region. */
+.alert {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
+}
+.alert--error {
+  border-color: var(--danger);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}

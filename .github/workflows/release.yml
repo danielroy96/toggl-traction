@@ -1,0 +1,42 @@
+name: Release
+
+# Build installers for macOS, Linux and Windows when a version tag is pushed,
+# and attach them to a GitHub Release. Tag with e.g. `git tag v0.1.0 && git push --tags`.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build renderer + main
+        run: npm run build
+
+      - name: Package & publish installers
+        # electron-builder detects the host OS and produces its targets
+        # (macOS: dmg/zip, Linux: AppImage/deb, Windows: nsis/zip), then
+        # uploads them to the GitHub Release for this tag.
+        run: npx --no-install electron-builder --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
