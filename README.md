@@ -21,18 +21,26 @@ on each `v*` tag. Builds are currently unsigned, so the OS may warn on first lau
 
 ### macOS first launch
 
-The macOS build is ad-hoc signed but not notarized, so Gatekeeper shows a
-one-time warning. To open it:
+The macOS build is ad-hoc signed but not notarized, so on first launch
+Gatekeeper says it *"could not verify … is free of malware"* and blocks it.
+This is expected — approve it once and it launches normally thereafter.
 
-1. In Finder, **right-click** (or Control-click) **Toggl Traction** → **Open**,
-   then confirm **Open** in the dialog. After this once, it launches normally.
+**macOS 13–14 (Ventura/Sonoma):** right-click (or Control-click) **Toggl
+Traction** in Finder → **Open**, then confirm **Open** in the dialog.
 
-If macOS still reports the app as *"damaged and can't be opened"* (usually an
-older download from before the app was signed), clear the quarantine flag:
+**macOS 15+ (Sequoia):** the right-click shortcut was removed. Double-click the
+app, dismiss the warning, then open **System Settings → Privacy & Security**,
+scroll down, and click **Open Anyway** next to the Toggl Traction message.
+
+Alternatively, on any version, clear the quarantine flag from a terminal to
+open it directly:
 
 ```bash
-xattr -cr "/Applications/Toggl Traction.app"
+xattr -dr com.apple.quarantine "/Applications/Toggl Traction.app"
 ```
+
+(An older download from before the app was signed may instead report as
+*"damaged and can't be opened"* — the same command fixes that.)
 
 ## Contributing
 
