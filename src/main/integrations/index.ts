@@ -1,9 +1,16 @@
 import { EventEmitter } from 'node:events'
-import type { AppSettings, TrackingSuggestion } from '../../shared/types.js'
+import type { AppSettings, TimeEntry, TrackingSuggestion } from '../../shared/types.js'
 import { WindowDetectionSource } from './window-detect.js'
 import { JiraSource } from './jira.js'
 import { GoogleCalendarSource } from './calendar.js'
 import { GoogleCalendarManager } from './google/tokens.js'
+
+/**
+ * Supplies recent time entries so sources can learn a project/task from what the
+ * user tracked before. Injected by the app controller, which owns the Toggl
+ * client; defaults to "no history" until then.
+ */
+export type HistoryProvider = () => Promise<TimeEntry[]>
 
 /**
  * A source that can propose time-tracking entries (e.g. the active IntelliJ
@@ -28,14 +35,24 @@ export class SuggestionEngine extends EventEmitter {
   private latest = new Map<string, TrackingSuggestion[]>()
   /** Owns the Google Calendar OAuth connection; exposed for connect/disconnect. */
   readonly googleCalendar = new GoogleCalendarManager()
+  private historyProvider: HistoryProvider = async () => []
 
   constructor() {
     super()
     this.sources = [
       new WindowDetectionSource((s) => this.ingest('window-detection', s)),
       new JiraSource((s) => this.ingest('jira', s)),
-      new GoogleCalendarSource((s) => this.ingest('google-calendar', s), this.googleCalendar)
+      new GoogleCalendarSource(
+        (s) => this.ingest('google-calendar', s),
+        this.googleCalendar,
+        () => this.historyProvider()
+      )
     ]
+  }
+
+  /** Provide recent time entries used to pre-fill suggestions from history. */
+  setHistoryProvider(provider: HistoryProvider): void {
+    this.historyProvider = provider
   }
 
   /** Re-poll a single source on demand (e.g. right after connecting an account). */

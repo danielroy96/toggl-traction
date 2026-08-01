@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-const TESTS = ['timer-test.ts', 'calendar-test.ts']
+const TESTS = ['timer-test.ts', 'calendar-test.ts', 'enrich-test.ts']
 
 let failed = false
 for (const test of TESTS) {

@@ -1,7 +1,8 @@
-import type { TrackingSuggestion } from '../../shared/types.js'
+import type { TimeEntry, TrackingSuggestion } from '../../shared/types.js'
 import type { SuggestionSource } from './index.js'
 import type { GoogleCalendarManager } from './google/tokens.js'
 import { listEvents, eventsToSuggestions } from './google/calendar-client.js'
+import { buildHistoryIndex, enrichSuggestion } from './enrich.js'
 
 /**
  * Suggests time entries from Google Calendar meetings. A meeting the user is
@@ -12,6 +13,10 @@ import { listEvents, eventsToSuggestions } from './google/calendar-client.js'
  * {@link GoogleCalendarManager}; this source only asks it for an access token
  * and reads events around "now". When the account isn't connected it simply
  * emits nothing, so enabling the toggle before connecting is harmless.
+ *
+ * Each meeting is then enriched: a ticket reference in the title is surfaced,
+ * and if the user has tracked against this meeting (or ticket) before, the same
+ * project/task is pre-filled so starting it is a single click.
  */
 
 /** How far either side of now to look for meetings. */
@@ -25,7 +30,8 @@ export class GoogleCalendarSource implements SuggestionSource {
 
   constructor(
     private emit: (s: TrackingSuggestion[]) => void,
-    private auth: GoogleCalendarManager
+    private auth: GoogleCalendarManager,
+    private getHistory: () => Promise<TimeEntry[]>
   ) {}
 
   start(): void {
@@ -49,7 +55,18 @@ export class GoogleCalendarSource implements SuggestionSource {
         new Date(now.getTime() - LOOKBACK_MS),
         new Date(now.getTime() + LOOKAHEAD_MS)
       )
-      return eventsToSuggestions(events, now)
+      const suggestions = eventsToSuggestions(events, now)
+
+      // Learn a project/task from history. Never let a history failure sink the
+      // whole poll — fall back to un-enriched suggestions.
+      let history: TimeEntry[] = []
+      try {
+        history = await this.getHistory()
+      } catch {
+        /* no history this round */
+      }
+      const index = buildHistoryIndex(history)
+      return suggestions.map((s) => enrichSuggestion(s, index))
     } catch {
       // Never let a transient calendar/network/auth error break the engine; drop
       // suggestions this round and let the next poll retry.
