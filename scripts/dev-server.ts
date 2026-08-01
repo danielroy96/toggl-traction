@@ -104,6 +104,14 @@ async function dispatch(method: string, args: unknown[]): Promise<unknown> {
       return settings
     case 'suggestions.get':
       return []
+    case 'calendar.getStatus':
+      // The dev bridge can't run the Electron OAuth flow, so report it as
+      // unconfigured; the real integration only works in the packaged app.
+      return { connected: false, configured: false }
+    case 'calendar.disconnect':
+      return { connected: false, configured: false }
+    case 'calendar.connect':
+      throw new Error('Google Calendar can only be connected from the desktop app.')
     case 'mini.show':
     case 'mini.hide':
     case 'mini.setContentSize':

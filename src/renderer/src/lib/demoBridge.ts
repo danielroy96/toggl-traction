@@ -178,6 +178,12 @@ export function installDemoBridge(): void {
       get: async () => [],
       onChange: () => () => {}
     },
+    calendar: {
+      getStatus: async () => ({ connected: false, configured: false }),
+      connect: async () => ({ connected: false, configured: false }),
+      disconnect: async () => ({ connected: false, configured: false }),
+      onChange: () => () => {}
+    },
     mini: {
       show: async () => null,
       hide: async () => null,

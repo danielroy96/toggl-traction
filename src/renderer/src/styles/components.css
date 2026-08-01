@@ -154,6 +154,19 @@
   padding: var(--space-5);
 }
 
+/* Connect/disconnect row sitting under an integration toggle. */
+.integration-connect {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  padding-left: calc(var(--space-6) + var(--space-2));
+}
+.integration-connect .btn {
+  flex: none;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;

@@ -1,5 +1,5 @@
 import { useApp } from '../store/app.js'
-import type { AppSettings } from '../../../shared/types.js'
+import type { AppSettings, GoogleCalendarStatus } from '../../../shared/types.js'
 
 const FONT_SCALES: { label: string; value: AppSettings['fontScale'] }[] = [
   { label: 'Follow system (recommended)', value: 'system' },
@@ -18,7 +18,15 @@ const THEMES: { label: string; value: AppSettings['theme'] }[] = [
 ]
 
 export function SettingsView(): JSX.Element {
-  const { settings, updateSettings, signOut, session } = useApp()
+  const {
+    settings,
+    updateSettings,
+    signOut,
+    session,
+    calendarStatus,
+    connectCalendar,
+    disconnectCalendar
+  } = useApp()
   if (!settings) return <p>Loading…</p>
 
   const setIntegration = (
@@ -104,9 +112,8 @@ export function SettingsView(): JSX.Element {
       <section className="card">
         <h2>Integrations</h2>
         <p className="hint">
-          These sources suggest entries automatically. They are scaffolded in
-          this build — enabling them wires the pipeline; connecting real
-          accounts is the next step.
+          These sources suggest entries automatically. Window detection and Jira
+          are scaffolded in this build; Google Calendar connects a real account.
         </p>
         <Toggle
           label="IDE window detection (IntelliJ branch / ticket refs)"
@@ -118,11 +125,19 @@ export function SettingsView(): JSX.Element {
           checked={settings.integrations.jira}
           onChange={(v) => setIntegration('jira', v)}
         />
-        <Toggle
-          label="Google Calendar meetings"
-          checked={settings.integrations.googleCalendar}
-          onChange={(v) => setIntegration('googleCalendar', v)}
-        />
+
+        <div className="field">
+          <Toggle
+            label="Google Calendar meetings"
+            checked={settings.integrations.googleCalendar}
+            onChange={(v) => setIntegration('googleCalendar', v)}
+          />
+          <CalendarConnection
+            status={calendarStatus}
+            onConnect={() => void connectCalendar()}
+            onDisconnect={() => void disconnectCalendar()}
+          />
+        </div>
       </section>
 
       <section className="card">
@@ -136,6 +151,55 @@ export function SettingsView(): JSX.Element {
           Sign out
         </button>
       </section>
+    </div>
+  )
+}
+
+interface CalendarConnectionProps {
+  status: GoogleCalendarStatus | null
+  onConnect: () => void
+  onDisconnect: () => void
+}
+
+/** Connect/disconnect control and status line for the Google Calendar account. */
+function CalendarConnection({
+  status,
+  onConnect,
+  onDisconnect
+}: CalendarConnectionProps): JSX.Element | null {
+  if (!status) return null
+
+  if (!status.configured) {
+    return (
+      <p className="hint">
+        Google Calendar isn’t set up in this build. Provide an OAuth client via
+        the <code>GOOGLE_OAUTH_CLIENT_ID</code> environment variable to enable
+        connecting.
+      </p>
+    )
+  }
+
+  return (
+    <div className="integration-connect">
+      {status.connected ? (
+        <>
+          <span className="muted">
+            Connected{status.email ? ` as ${status.email}` : ''}.
+          </span>
+          <button className="btn btn--secondary" onClick={onDisconnect}>
+            Disconnect
+          </button>
+        </>
+      ) : (
+        <>
+          <span className="hint">
+            Sign in with Google to suggest entries from your meetings.
+          </span>
+          <button className="btn btn--accent" onClick={onConnect}>
+            Connect Google Calendar
+          </button>
+        </>
+      )}
     </div>
   )
 }

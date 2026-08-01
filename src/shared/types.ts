@@ -118,6 +118,19 @@ export interface TrackingSuggestion {
   confidence: number
 }
 
+/** Connection state for the Google Calendar integration, shown in settings. */
+export interface GoogleCalendarStatus {
+  /** True once the user has completed OAuth and a refresh token is stored. */
+  connected: boolean
+  /** The connected Google account's email, when known. */
+  email?: string
+  /**
+   * False when this build has no OAuth client credentials configured, so the
+   * "Connect" action cannot run. The UI uses this to explain why.
+   */
+  configured: boolean
+}
+
 /** Payload to start a new timer. */
 export interface StartTimerInput {
   description: string
@@ -136,7 +149,8 @@ export const CHANNELS = {
   timerStateChanged: 'timer:state-changed',
   settingsChanged: 'settings:changed',
   suggestionsChanged: 'suggestions:changed',
-  authChanged: 'auth:changed'
+  authChanged: 'auth:changed',
+  calendarStatusChanged: 'calendar:status-changed'
 } as const
 
 /** Channel names for renderer -> main request/response (ipcRenderer.invoke). */
@@ -156,6 +170,9 @@ export const INVOKE = {
   settingsGet: 'settings:get',
   settingsUpdate: 'settings:update',
   suggestionsGet: 'suggestions:get',
+  calendarConnect: 'calendar:connect',
+  calendarDisconnect: 'calendar:disconnect',
+  calendarGetStatus: 'calendar:get-status',
   miniShow: 'mini:show',
   miniHide: 'mini:hide',
   miniSetContentSize: 'mini:set-content-size'

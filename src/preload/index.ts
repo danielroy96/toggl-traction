@@ -3,6 +3,7 @@ import {
   CHANNELS,
   INVOKE,
   type AppSettings,
+  type GoogleCalendarStatus,
   type IpcResult,
   type Session,
   type TimeEntry,
@@ -64,6 +65,16 @@ const api = {
     get: (): Promise<TrackingSuggestion[]> => unwrap(ipcRenderer.invoke(INVOKE.suggestionsGet)),
     onChange: (cb: (s: TrackingSuggestion[]) => void) =>
       on<TrackingSuggestion[]>(CHANNELS.suggestionsChanged, cb)
+  },
+  calendar: {
+    getStatus: (): Promise<GoogleCalendarStatus> =>
+      unwrap(ipcRenderer.invoke(INVOKE.calendarGetStatus)),
+    connect: (): Promise<GoogleCalendarStatus> =>
+      unwrap(ipcRenderer.invoke(INVOKE.calendarConnect)),
+    disconnect: (): Promise<GoogleCalendarStatus> =>
+      unwrap(ipcRenderer.invoke(INVOKE.calendarDisconnect)),
+    onChange: (cb: (s: GoogleCalendarStatus) => void) =>
+      on<GoogleCalendarStatus>(CHANNELS.calendarStatusChanged, cb)
   },
   mini: {
     show: (): Promise<null> => unwrap(ipcRenderer.invoke(INVOKE.miniShow)),
