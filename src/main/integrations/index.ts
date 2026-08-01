@@ -3,6 +3,7 @@ import type { AppSettings, TrackingSuggestion } from '../../shared/types.js'
 import { WindowDetectionSource } from './window-detect.js'
 import { JiraSource } from './jira.js'
 import { GoogleCalendarSource } from './calendar.js'
+import { GoogleCalendarManager } from './google/tokens.js'
 
 /**
  * A source that can propose time-tracking entries (e.g. the active IntelliJ
@@ -25,14 +26,23 @@ export interface SuggestionSource {
 export class SuggestionEngine extends EventEmitter {
   private sources: SuggestionSource[]
   private latest = new Map<string, TrackingSuggestion[]>()
+  /** Owns the Google Calendar OAuth connection; exposed for connect/disconnect. */
+  readonly googleCalendar = new GoogleCalendarManager()
 
   constructor() {
     super()
     this.sources = [
       new WindowDetectionSource((s) => this.ingest('window-detection', s)),
       new JiraSource((s) => this.ingest('jira', s)),
-      new GoogleCalendarSource((s) => this.ingest('google-calendar', s))
+      new GoogleCalendarSource((s) => this.ingest('google-calendar', s), this.googleCalendar)
     ]
+  }
+
+  /** Re-poll a single source on demand (e.g. right after connecting an account). */
+  async refreshSource(id: string): Promise<void> {
+    const source = this.sources.find((s) => s.id === id)
+    if (!source) return
+    this.ingest(id, await source.poll())
   }
 
   private ingest(sourceId: string, suggestions: TrackingSuggestion[]): void {

@@ -31,7 +31,14 @@ jobs:
         run: npm ci
 
       - name: Build renderer + main
+        # The Google OAuth client is baked into the main bundle at build time
+        # (electron.vite.config.ts). Desktop-app client credentials are not
+        # confidential, but they still live in repo/org secrets rather than the
+        # source tree.
         run: npm run build
+        env:
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
 
       - name: Package & publish installers
         # electron-builder detects the host OS and produces its targets

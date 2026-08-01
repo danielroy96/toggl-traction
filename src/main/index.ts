@@ -152,6 +152,9 @@ class AppController {
     this.suggestions.on('change', (list) => {
       this.broadcast(CHANNELS.suggestionsChanged, list)
     })
+    this.suggestions.googleCalendar.on('status', (status) => {
+      this.broadcast(CHANNELS.calendarStatusChanged, status)
+    })
   }
 
   private refreshMiniVisibility(): void {
@@ -286,6 +289,28 @@ class AppController {
     })
 
     handle(INVOKE.suggestionsGet, () => this.suggestions.getSuggestions())
+
+    handle(INVOKE.calendarGetStatus, () => this.suggestions.googleCalendar.getStatus())
+    handle(INVOKE.calendarConnect, async () => {
+      const status = await this.suggestions.googleCalendar.connect()
+      // Turn the source on so a freshly connected account starts suggesting.
+      if (!this.settings.integrations.googleCalendar) {
+        this.settings = {
+          ...this.settings,
+          integrations: { ...this.settings.integrations, googleCalendar: true }
+        }
+        saveSettings(this.settings)
+        this.suggestions.applySettings(this.settings)
+        this.broadcast(CHANNELS.settingsChanged, this.settings)
+      } else {
+        void this.suggestions.refreshSource('google-calendar')
+      }
+      return status
+    })
+    handle(INVOKE.calendarDisconnect, () => {
+      this.suggestions.googleCalendar.disconnect()
+      return this.suggestions.googleCalendar.getStatus()
+    })
 
     handle(INVOKE.miniShow, () => {
       this.mini.show()

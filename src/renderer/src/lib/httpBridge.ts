@@ -78,6 +78,12 @@ export function installHttpBridge(): void {
       get: () => rpc('suggestions.get'),
       onChange: (cb) => subscribe('suggestions', cb as Listener)
     },
+    calendar: {
+      getStatus: () => rpc('calendar.getStatus'),
+      connect: () => rpc('calendar.connect'),
+      disconnect: () => rpc('calendar.disconnect'),
+      onChange: (cb) => subscribe('calendar', cb as Listener)
+    },
     mini: {
       show: () => rpc('mini.show'),
       hide: () => rpc('mini.hide'),

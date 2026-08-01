@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type {
   AppSettings,
+  GoogleCalendarStatus,
   Session,
   StartTimerInput,
   TimeEntry,
@@ -21,6 +22,8 @@ interface AppStore {
   entries: TimeEntry[]
   settings: AppSettings | null
   suggestions: TrackingSuggestion[]
+  /** Google Calendar connection state; null until first loaded. */
+  calendarStatus: GoogleCalendarStatus | null
   /** Non-fatal error shown as a toast; separate from timer.error. */
   toast: string | null
 
@@ -33,6 +36,10 @@ interface AppStore {
   refreshProjects: () => Promise<void>
   refreshTasks: () => Promise<void>
   updateSettings: (patch: Partial<AppSettings>) => Promise<void>
+  /** Launch the Google OAuth flow and link the calendar account. */
+  connectCalendar: () => Promise<void>
+  /** Forget the linked Google Calendar account. */
+  disconnectCalendar: () => Promise<void>
   deleteEntry: (id: number) => Promise<void>
   /** Apply an arbitrary patch to an entry (running or finished) and reconcile. */
   editEntry: (id: number, patch: Partial<TimeEntry>) => Promise<void>
@@ -62,6 +69,7 @@ export const useApp = create<AppStore>((set, get) => ({
   entries: [],
   settings: null,
   suggestions: [],
+  calendarStatus: null,
   toast: null,
 
   init: async () => {
@@ -73,13 +81,14 @@ export const useApp = create<AppStore>((set, get) => ({
       return
     }
     try {
-      const [session, settings, timer, suggestions] = await Promise.all([
+      const [session, settings, timer, suggestions, calendarStatus] = await Promise.all([
         api.auth.getSession(),
         api.settings.get(),
         api.timer.getState(),
-        api.suggestions.get()
+        api.suggestions.get(),
+        api.calendar.getStatus()
       ])
-      set({ session, settings, timer, suggestions })
+      set({ session, settings, timer, suggestions, calendarStatus })
     } catch (err) {
       // Never leave the app hanging on the splash if the bridge misbehaves.
       set({ toast: err instanceof Error ? err.message : 'Failed to connect.' })
@@ -91,6 +100,7 @@ export const useApp = create<AppStore>((set, get) => ({
     api.timer.onChange((t) => set({ timer: t }))
     api.settings.onChange((s) => set({ settings: s }))
     api.suggestions.onChange((s) => set({ suggestions: s }))
+    api.calendar.onChange((s) => set({ calendarStatus: s }))
     api.auth.onChange((s) => {
       set({ session: s })
       if (s) {
@@ -178,6 +188,28 @@ export const useApp = create<AppStore>((set, get) => ({
   updateSettings: async (patch) => {
     const settings = await window.toggl.settings.update(patch)
     set({ settings })
+  },
+
+  connectCalendar: async () => {
+    try {
+      const calendarStatus = await window.toggl.calendar.connect()
+      set({ calendarStatus })
+    } catch (err) {
+      set({
+        toast: err instanceof Error ? err.message : 'Could not connect Google Calendar.'
+      })
+    }
+  },
+
+  disconnectCalendar: async () => {
+    try {
+      const calendarStatus = await window.toggl.calendar.disconnect()
+      set({ calendarStatus })
+    } catch (err) {
+      set({
+        toast: err instanceof Error ? err.message : 'Could not disconnect Google Calendar.'
+      })
+    }
   },
 
   deleteEntry: async (id) => {

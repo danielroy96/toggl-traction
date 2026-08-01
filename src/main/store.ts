@@ -23,7 +23,8 @@ function dir(): string {
 }
 
 const settingsPath = (): string => join(dir(), 'settings.json')
-const tokenPath = (): string => join(dir(), 'token.enc')
+/** Encrypted secrets live in `<name>.enc`; the Toggl token uses `token`. */
+const secretPath = (name: string): string => join(dir(), `${name}.enc`)
 
 export function loadSettings(): AppSettings {
   try {
@@ -44,31 +45,43 @@ export function saveSettings(settings: AppSettings): void {
   writeFileSync(settingsPath(), JSON.stringify(settings, null, 2), 'utf-8')
 }
 
-export function saveToken(token: string): void {
+/**
+ * Encrypt and persist a named secret (OAuth refresh tokens, API tokens, …).
+ * Refuses to write when OS encryption is unavailable rather than leak plaintext.
+ */
+export function saveSecret(name: string, value: string): void {
   if (!safeStorage.isEncryptionAvailable()) {
     throw new Error(
-      'Secure storage is not available on this system, so the API token cannot be saved safely.'
+      'Secure storage is not available on this system, so the credential cannot be saved safely.'
     )
   }
-  const encrypted = safeStorage.encryptString(token)
-  writeFileSync(tokenPath(), encrypted)
+  writeFileSync(secretPath(name), safeStorage.encryptString(value))
 }
 
-export function loadToken(): string | null {
+export function loadSecret(name: string): string | null {
   try {
-    if (!existsSync(tokenPath())) return null
+    const path = secretPath(name)
+    if (!existsSync(path)) return null
     if (!safeStorage.isEncryptionAvailable()) return null
-    const buf = readFileSync(tokenPath())
+    const buf = readFileSync(path)
+    // A cleared secret is a zero-byte file; treat it as absent.
+    if (buf.length === 0) return null
     return safeStorage.decryptString(buf)
   } catch {
     return null
   }
 }
 
-export function clearToken(): void {
+export function clearSecret(name: string): void {
   try {
-    if (existsSync(tokenPath())) writeFileSync(tokenPath(), Buffer.alloc(0))
+    const path = secretPath(name)
+    if (existsSync(path)) writeFileSync(path, Buffer.alloc(0))
   } catch {
     /* best effort */
   }
 }
+
+// The Toggl API token is just the canonical secret named "token".
+export const saveToken = (token: string): void => saveSecret('token', token)
+export const loadToken = (): string | null => loadSecret('token')
+export const clearToken = (): void => clearSecret('token')
