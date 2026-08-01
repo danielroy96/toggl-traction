@@ -19,6 +19,21 @@ Grab an installer from the [latest release](https://github.com/danielroy96/toggl
 Installers are built for all three platforms by the [release workflow](.github/workflows/release.yml)
 on each `v*` tag. Builds are currently unsigned, so the OS may warn on first launch.
 
+### macOS first launch
+
+The macOS build is ad-hoc signed but not notarized, so Gatekeeper shows a
+one-time warning. To open it:
+
+1. In Finder, **right-click** (or Control-click) **Toggl Traction** → **Open**,
+   then confirm **Open** in the dialog. After this once, it launches normally.
+
+If macOS still reports the app as *"damaged and can't be opened"* (usually an
+older download from before the app was signed), clear the quarantine flag:
+
+```bash
+xattr -cr "/Applications/Toggl Traction.app"
+```
+
 ## Contributing
 
 `main` is protected: every change lands via a pull request and CI (typecheck,
