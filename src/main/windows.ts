@@ -93,6 +93,18 @@ export class MiniTimerWindow {
   private win: BrowserWindow | null = null
   private heartbeat: ReturnType<typeof setInterval> | null = null
   private displayListenersBound = false
+  // Whether `visibleOnAllWorkspaces` is currently applied. Calling
+  // setVisibleOnAllWorkspaces repeatedly is the classic macOS cause of orphaned
+  // "ghost" windows, so we apply it exactly once per shown session and clear it
+  // before hiding, tracking the state here rather than re-asserting blindly.
+  private spacesApplied = false
+  // The renderer has reported at least one content size, so the window is sized
+  // to fit. We defer the first reveal until this is true to avoid flashing the
+  // window at its placeholder height.
+  private hasFitted = false
+  // show() was requested; the window should be revealed once it has fitted.
+  private wantsVisible = false
+  private revealTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(
     private opts: { onHideRequested?: () => void; onOpenMain?: () => void } = {}
@@ -117,11 +129,18 @@ export class MiniTimerWindow {
   private create(): BrowserWindow {
     const saved = loadMiniPosition()
     const primary = screen.getPrimaryDisplay().workArea
+    // Fresh window: it has not fitted yet and carries no Spaces flag.
+    this.hasFitted = false
+    this.spacesApplied = false
     const win = new BrowserWindow({
       width: MINI_WIDTH,
       height: MINI_HEIGHT,
       x: saved?.x ?? primary.x + primary.width - MINI_WIDTH - 24,
       y: saved?.y ?? primary.y + 24,
+      // Content-relative sizing: width/height and setContentSize() below refer
+      // to the web content area, so the renderer's measured height maps 1:1 to
+      // the OS window and there is no frame arithmetic to get wrong.
+      useContentSize: true,
       show: false,
       frame: false,
       resizable: false,
@@ -142,15 +161,15 @@ export class MiniTimerWindow {
       }
     })
 
-    this.applyAlwaysOnTop(win)
-
     // Right-click anywhere on the mini timer opens its context menu.
     win.webContents.on('context-menu', () => this.popupMenu())
 
-    // Re-assert whenever the window could have lost its topmost status.
-    win.on('show', () => this.applyAlwaysOnTop(win))
-    win.on('blur', () => this.applyAlwaysOnTop(win))
-    win.on('focus', () => this.applyAlwaysOnTop(win))
+    // Re-assert topmost when the window could have lost it. Deliberately only
+    // setAlwaysOnTop here (cheap, idempotent) — NOT setVisibleOnAllWorkspaces,
+    // whose repeated use spawns ghost windows on macOS.
+    win.on('show', () => this.assertOnTop())
+    win.on('blur', () => this.assertOnTop())
+    win.on('focus', () => this.assertOnTop())
     win.on('moved', () => {
       const [x = 0, y = 0] = win.getPosition()
       saveMiniPosition(x, y)
@@ -160,7 +179,7 @@ export class MiniTimerWindow {
     win.on('close', (e) => {
       if (!(app as unknown as { isQuitting?: boolean }).isQuitting) {
         e.preventDefault()
-        win.hide()
+        this.hide()
       }
     })
 
@@ -180,39 +199,77 @@ export class MiniTimerWindow {
     if (!win || win.isDestroyed()) return
     const w = Math.round(Math.max(180, Math.min(width, 520)))
     const h = Math.round(Math.max(48, Math.min(height, 640)))
+    // The renderer has produced a real measurement — safe to reveal now.
+    this.hasFitted = true
     const [x = 0, y = 0] = win.getPosition()
-    const [curW = w, curH = h] = win.getSize()
-    if (curW === w && curH === h) return // no change → avoid redundant resize
-    const display = screen.getDisplayNearestPoint({ x, y })
-    const wa = display.workArea
-    const nx = Math.min(Math.max(x, wa.x), wa.x + wa.width - w)
-    const ny = Math.min(Math.max(y, wa.y), wa.y + wa.height - h)
-    // Animate only for larger jumps (expand/collapse), not tiny reflows.
-    const animate = process.platform === 'darwin' && Math.abs(curH - h) > 24
-    win.setBounds({ x: Math.round(nx), y: Math.round(ny), width: w, height: h }, animate)
-    this.applyAlwaysOnTop(win)
+    const [curW = w, curH = h] = win.getContentSize()
+    if (curW !== w || curH !== h) {
+      const display = screen.getDisplayNearestPoint({ x, y })
+      const wa = display.workArea
+      const nx = Math.min(Math.max(x, wa.x), wa.x + wa.width - w)
+      const ny = Math.min(Math.max(y, wa.y), wa.y + wa.height - h)
+      // Animate only for larger jumps (expand/collapse), not tiny reflows.
+      const animate = process.platform === 'darwin' && Math.abs(curH - h) > 24
+      win.setContentBounds(
+        { x: Math.round(nx), y: Math.round(ny), width: w, height: h },
+        animate
+      )
+      this.assertOnTop()
+    }
+    // First fit for a pending show → reveal the correctly-sized window.
+    if (this.wantsVisible && !win.isVisible()) this.reveal()
   }
 
-  private applyAlwaysOnTop(win: BrowserWindow): void {
-    if (win.isDestroyed()) return
+  /**
+   * Re-assert always-on-top only. Cheap and idempotent — unlike
+   * setVisibleOnAllWorkspaces, repeating setAlwaysOnTop does not spawn ghost
+   * windows, so this is what every routine "keep it on top" path uses.
+   */
+  private assertOnTop(): void {
+    const win = this.win
+    if (!win || win.isDestroyed() || !win.isVisible()) return
     win.setAlwaysOnTop(true, AOT_LEVEL)
-    // Keep it visible across spaces and over fullscreen apps (macOS/Windows).
-    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  }
+
+  /**
+   * Actually put the window on screen, once it has a real content size. Applies
+   * the cross-Spaces / over-fullscreen visibility exactly once per shown session
+   * (tracked by `spacesApplied`) to avoid ghost-window duplication.
+   */
+  private reveal(): void {
+    const win = this.win
+    if (!this.wantsVisible || !win || win.isDestroyed()) return
+    if (this.revealTimer) {
+      clearTimeout(this.revealTimer)
+      this.revealTimer = null
+    }
+    if (!win.isVisible()) win.showInactive()
+    win.setAlwaysOnTop(true, AOT_LEVEL)
+    if (!this.spacesApplied) {
+      win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+      this.spacesApplied = true
+    }
+    if (!this.heartbeat) {
+      // Belt-and-braces: some window managers drop topmost with no event.
+      // Only re-assert alwaysOnTop here — never setVisibleOnAllWorkspaces.
+      this.heartbeat = setInterval(() => this.assertOnTop(), 4000)
+    }
   }
 
   private onDisplayChange(): void {
     if (!this.win || this.win.isDestroyed()) return
     // A display change can drop the topmost flag and can move the window
     // off-screen; re-assert and pull it back into a valid work area.
-    this.applyAlwaysOnTop(this.win)
+    this.assertOnTop()
     const [x = 0, y = 0] = this.win.getPosition()
+    const [w = MINI_WIDTH] = this.win.getContentSize()
     const visible = screen.getAllDisplays().some((d) => {
       const b = d.workArea
       return x >= b.x && x < b.x + b.width && y >= b.y && y < b.y + b.height
     })
     if (!visible) {
       const primary = screen.getPrimaryDisplay().workArea
-      this.win.setPosition(primary.x + primary.width - MINI_WIDTH - 24, primary.y + 24)
+      this.win.setPosition(primary.x + primary.width - w - 24, primary.y + 24)
     }
   }
 
@@ -226,26 +283,37 @@ export class MiniTimerWindow {
       screen.on('display-removed', this.onDisplayChange)
       this.displayListenersBound = true
     }
-    const win = this.win
-    win.showInactive()
-    this.applyAlwaysOnTop(win)
-
-    if (!this.heartbeat) {
-      // Belt-and-braces: some window managers drop topmost with no event.
-      this.heartbeat = setInterval(() => {
-        if (this.win && !this.win.isDestroyed() && this.win.isVisible()) {
-          this.applyAlwaysOnTop(this.win)
-        }
-      }, 4000)
+    this.wantsVisible = true
+    // Reveal now if the window is already sized to its content; otherwise wait
+    // for the renderer's first setContentSize (with a fallback so a renderer
+    // that never reports still surfaces the window).
+    if (this.hasFitted) {
+      this.reveal()
+    } else if (!this.revealTimer) {
+      this.revealTimer = setTimeout(() => this.reveal(), 1500)
     }
   }
 
   hide(): void {
+    this.wantsVisible = false
+    if (this.revealTimer) {
+      clearTimeout(this.revealTimer)
+      this.revealTimer = null
+    }
     if (this.heartbeat) {
       clearInterval(this.heartbeat)
       this.heartbeat = null
     }
-    if (this.win && !this.win.isDestroyed()) this.win.hide()
+    const win = this.win
+    if (win && !win.isDestroyed()) {
+      // Clear the cross-Spaces flag before hiding. Leaving it set while hidden
+      // is what leaves phantom copies of the window on other macOS Spaces.
+      if (this.spacesApplied) {
+        win.setVisibleOnAllWorkspaces(false)
+        this.spacesApplied = false
+      }
+      win.hide()
+    }
   }
 
   isVisible(): boolean {

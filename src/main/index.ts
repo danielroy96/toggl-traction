@@ -122,6 +122,11 @@ class AppController {
           : 'system'
   }
 
+  /** Bring the app to the foreground (dock/Cmd-Tab re-activate on macOS). */
+  showMain(): void {
+    this.focusMain()
+  }
+
   private focusMain(): void {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) {
       this.mainWindow = createMainWindow()
@@ -309,9 +314,9 @@ const controller = new AppController()
 
 app.whenReady().then(() => {
   void controller.init()
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) void controller.init()
-  })
+  // Re-activating (dock click, Cmd-Tab) should re-open/focus the main window —
+  // NOT re-run init(), which would re-register IPC handlers and throw.
+  app.on('activate', () => controller.showMain())
 })
 
 // Keep running in the tray on window close (except on explicit quit).
