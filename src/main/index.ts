@@ -193,7 +193,24 @@ class AppController {
     const activeWorkspaceId = me.default_workspace_id ?? workspaces[0]?.id
     if (!activeWorkspaceId) throw new Error('No workspace found for this account.')
 
-    if (persist) saveToken(token)
+    // Persisting is best-effort: a valid token must still sign the user in even
+    // when the OS keychain is unavailable (e.g. Linux without a keyring), rather
+    // than failing the whole sign-in. We record whether it stuck so the UI can
+    // warn that they'll need to sign in again next launch.
+    // When persist is false this is an auto sign-in from an already-stored token,
+    // so it's persisted by definition.
+    let tokenPersisted = true
+    if (persist) {
+      try {
+        saveToken(token)
+      } catch (err) {
+        tokenPersisted = false
+        console.warn(
+          'Signed in but could not save the token:',
+          err instanceof Error ? err.message : err
+        )
+      }
+    }
     this.client = client
     this.session = {
       user: {
@@ -204,7 +221,8 @@ class AppController {
         image_url: me.image_url
       },
       workspaces,
-      activeWorkspaceId
+      activeWorkspaceId,
+      tokenPersisted
     }
     this.timer.attach(client, activeWorkspaceId)
     this.broadcast(CHANNELS.authChanged, this.session)

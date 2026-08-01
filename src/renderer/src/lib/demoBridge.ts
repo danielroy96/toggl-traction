@@ -27,7 +27,8 @@ export function installDemoBridge(): void {
       default_workspace_id: 100
     },
     workspaces: [{ id: 100, name: 'Acme Engineering' }],
-    activeWorkspaceId: 100
+    activeWorkspaceId: 100,
+    tokenPersisted: true
   }
 
   const projects: TogglProject[] = [
