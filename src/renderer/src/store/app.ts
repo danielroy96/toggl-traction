@@ -127,6 +127,12 @@ export const useApp = create<AppStore>((set, get) => ({
     }
     const session = await window.toggl.auth.signIn(token)
     set({ session })
+    if (!session.tokenPersisted) {
+      set({
+        toast:
+          'Signed in, but your token couldn’t be saved securely on this system — you’ll need to sign in again next time.'
+      })
+    }
     await Promise.all([
       get().refreshProjects(),
       get().refreshTasks(),

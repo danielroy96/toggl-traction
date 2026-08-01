@@ -57,6 +57,12 @@ export interface Session {
   user: TogglUser
   workspaces: { id: number; name: string }[]
   activeWorkspaceId: number
+  /**
+   * False when the token was accepted but could not be saved to the OS keychain
+   * (e.g. no keyring on Linux), so the user will have to sign in again next
+   * launch. The UI uses this to warn without blocking sign-in.
+   */
+  tokenPersisted: boolean
 }
 
 /** Everything the UI needs to render the current running state. */
