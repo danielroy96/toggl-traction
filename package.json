@@ -1,6 +1,6 @@
 {
   "name": "toggl-traction",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "An accessible, cross-platform time tracker that talks to Toggl Track",
   "main": "./out/main/index.js",
   "author": "Toggl Traction",
