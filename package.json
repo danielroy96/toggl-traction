@@ -44,6 +44,7 @@
   "build": {
     "appId": "com.toggltraction.app",
     "productName": "Toggl Traction",
+    "afterPack": "build/afterPack.cjs",
     "directories": {
       "output": "release",
       "buildResources": "build"
