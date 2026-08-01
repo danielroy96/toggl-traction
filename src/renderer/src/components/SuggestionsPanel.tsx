@@ -7,7 +7,9 @@ import { useApp } from '../store/app.js'
  * wired to real data. Each suggestion is a one-click start.
  */
 export function SuggestionsPanel(): JSX.Element {
-  const { suggestions, settings, start } = useApp()
+  const { suggestions, settings, start, projects } = useApp()
+  const projectName = (id?: number | null): string | undefined =>
+    id == null ? undefined : projects.find((p) => p.id === id)?.name
   const anyEnabled =
     !!settings &&
     (settings.integrations.windowDetection ||
@@ -27,21 +29,33 @@ export function SuggestionsPanel(): JSX.Element {
         <p className="muted">No suggestions right now.</p>
       )}
       <ul className="suggestions__list">
-        {suggestions.map((s) => (
-          <li key={s.id} className="suggestion-row">
-            <span className={`badge badge--${s.source}`}>{sourceLabel(s.source)}</span>
-            <span className="suggestion-row__desc">{s.description}</span>
-            {s.ticketRef && <span className="badge">{s.ticketRef}</span>}
-            <button
-              className="btn btn--secondary suggestion-row__start"
-              onClick={() =>
-                void start({ description: s.description, projectId: s.projectId ?? null })
-              }
-            >
-              Start
-            </button>
-          </li>
-        ))}
+        {suggestions.map((s) => {
+          const project = projectName(s.projectId)
+          return (
+            <li key={s.id} className="suggestion-row">
+              <span className={`badge badge--${s.source}`}>{sourceLabel(s.source)}</span>
+              <span className="suggestion-row__desc">{s.description}</span>
+              {s.ticketRef && <span className="badge">{s.ticketRef}</span>}
+              {project && (
+                <span className="badge badge--project" title="Suggested from your history">
+                  {project}
+                </span>
+              )}
+              <button
+                className="btn btn--secondary suggestion-row__start"
+                onClick={() =>
+                  void start({
+                    description: s.description,
+                    projectId: s.projectId ?? null,
+                    taskId: s.taskId ?? null
+                  })
+                }
+              >
+                Start
+              </button>
+            </li>
+          )
+        })}
       </ul>
     </section>
   )

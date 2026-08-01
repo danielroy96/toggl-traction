@@ -109,7 +109,10 @@ export interface TrackingSuggestion {
   id: string
   source: 'window-detection' | 'jira' | 'google-calendar'
   description: string
+  /** Suggested project, e.g. learned from what was tracked here before. */
   projectId?: number | null
+  /** Suggested task within the project, when one was learned from history. */
+  taskId?: number | null
   /** Optional detected ticket reference, e.g. "PROJ-123". */
   ticketRef?: string
   /** For calendar-derived suggestions. */

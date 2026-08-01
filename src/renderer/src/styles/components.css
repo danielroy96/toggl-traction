@@ -179,6 +179,12 @@
   color: var(--text-secondary);
 }
 
+/* A project learned from history — tinted so it reads as an app-derived hint. */
+.badge--project {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
 .project-dot {
   width: 0.75rem;
   height: 0.75rem;

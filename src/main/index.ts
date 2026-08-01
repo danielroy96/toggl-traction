@@ -87,6 +87,12 @@ class AppController {
     this.registerIpc()
     this.wireBroadcasts()
 
+    // Let suggestion sources learn a project/task from what was tracked before.
+    // Reads the client lazily so it follows sign-in/out.
+    this.suggestions.setHistoryProvider(() =>
+      this.client ? this.client.getRecentEntries() : Promise.resolve([])
+    )
+
     this.mainWindow = createMainWindow()
     createTray({
       onOpen: () => this.focusMain(),

@@ -1,5 +1,6 @@
 import type { TrackingSuggestion } from '../../shared/types.js'
 import type { SuggestionSource } from './index.js'
+import { extractTicketRef } from './enrich.js'
 
 /**
  * Suggests tracking based on the active editor window (e.g. IntelliJ IDEA).
@@ -16,8 +17,6 @@ import type { SuggestionSource } from './index.js'
  * this source polls a no-op provider and emits nothing. Swap `readActiveWindow`
  * for the real call to light it up.
  */
-
-const TICKET_RE = /\b([A-Z][A-Z0-9]+-\d+)\b/
 
 interface ActiveWindow {
   title: string
@@ -54,7 +53,7 @@ export class WindowDetectionSource implements SuggestionSource {
     const isIde = IDE_OWNERS.some((o) => win.owner.toLowerCase().includes(o))
     if (!isIde) return []
 
-    const ticket = TICKET_RE.exec(win.title)?.[1]
+    const ticket = extractTicketRef(win.title)
     const description = ticket ? `Work on ${ticket}` : win.title
     return [
       {
