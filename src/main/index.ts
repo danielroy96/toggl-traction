@@ -58,6 +58,11 @@ function installCrashGuards(): void {
 
 installCrashGuards()
 
+// In development the app menu, dock and About panel take their name from
+// Electron's own bundle ("Electron"). `productName` only fixes packaged builds,
+// so set the name explicitly here to keep dev and prod consistent.
+app.setName('Toggl Traction')
+
 /**
  * Application controller. Owns the long-lived services (timer, suggestions,
  * windows) and wires the IPC surface. Keeping this in one place makes the data
