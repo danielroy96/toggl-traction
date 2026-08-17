@@ -3,7 +3,7 @@ import { useApp } from '../store/app.js'
 import type { TimeEntry } from '../../../shared/types.js'
 import { Modal } from './Modal.js'
 import { ProjectTaskPicker } from './ProjectTaskPicker.js'
-import { fromLocalInput, toLocalInput, formatDuration } from '../lib/format.js'
+import { fromLocalInput, toLocalInput, formatDuration, elapsedSeconds } from '../lib/format.js'
 
 interface Props {
   entry: TimeEntry
@@ -36,9 +36,28 @@ export function EntryEditor({ entry, onClose }: Props): JSX.Element {
 
   const invalidRange = durationSeconds != null && durationSeconds < 0
 
+  // For a running entry there is no stop time, so its "duration" is however long
+  // it has run so far. A start in the future would make that negative, which is
+  // nonsensical for a running timer (and rejected by Toggl).
+  const startInFuture = useMemo(() => {
+    if (!isRunning) return false
+    return new Date(fromLocalInput(start)).getTime() > Date.now()
+  }, [start, isRunning])
+
+  // How long the running entry would have run so far, given the chosen start —
+  // shown as a live preview so the override's effect is obvious before saving.
+  const runningSeconds = useMemo(() => {
+    if (!isRunning || startInFuture) return null
+    return elapsedSeconds(fromLocalInput(start))
+  }, [start, isRunning, startInFuture])
+
   const onSave = async (): Promise<void> => {
     if (invalidRange) {
       setError('The stop time must be after the start time.')
+      return
+    }
+    if (startInFuture) {
+      setError('The start time can’t be in the future.')
       return
     }
     setBusy(true)
@@ -129,8 +148,11 @@ export function EntryEditor({ entry, onClose }: Props): JSX.Element {
           Duration: <span className="mono">{formatDuration(durationSeconds)}</span>
         </p>
       )}
-      {isRunning && (
-        <p className="hint">This entry is still running; stop it to set an end time.</p>
+      {isRunning && runningSeconds != null && (
+        <p className="hint">
+          Running for <span className="mono">{formatDuration(runningSeconds)}</span> so far.
+          Adjust the start time to correct when this entry began; stop it to set an end time.
+        </p>
       )}
       {error && (
         <div className="alert alert--error" role="alert">
