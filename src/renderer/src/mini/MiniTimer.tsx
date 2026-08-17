@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import type {
   AppSettings,
   TimerState,
@@ -140,17 +141,20 @@ export function MiniTimer(): JSX.Element {
           {/* Redundant with the editable fields when expanded, so collapsed-only. */}
           {!expanded && (
             <span className="mini__summary">
-              <span className="mini__desc">
+              <TruncatedText
+                className="mini__desc"
+                title={running ? running.description || 'No description' : 'Stopped'}
+              >
                 {running ? running.description || 'No description' : 'Stopped'}
-              </span>
-              <span className="mini__meta">
+              </TruncatedText>
+              <TruncatedText className="mini__meta" title={meta}>
                 <span
                   className="project-dot mini__dot"
                   style={{ background: project?.color ?? 'var(--border-strong)' }}
                   aria-hidden="true"
                 />
                 {meta}
-              </span>
+              </TruncatedText>
             </span>
           )}
         </div>
@@ -210,6 +214,43 @@ export function MiniTimer(): JSX.Element {
       )}
      </div>
     </div>
+  )
+}
+
+/**
+ * An inline text element that shows a native tooltip with its full content only
+ * when the text is actually clipped by the ellipsis. We compare scroll vs client
+ * width (and re-check on resize) so the tooltip never appears for text that fits.
+ */
+function TruncatedText({
+  className,
+  title,
+  children
+}: {
+  className?: string
+  title: string
+  children: ReactNode
+}): JSX.Element {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [tip, setTip] = useState<string | undefined>(undefined)
+
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const check = (): void => {
+      const overflowing = el.scrollWidth > el.clientWidth
+      setTip(overflowing ? title : undefined)
+    }
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [title])
+
+  return (
+    <span ref={ref} className={className} title={tip}>
+      {children}
+    </span>
   )
 }
 
