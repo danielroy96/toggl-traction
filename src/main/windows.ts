@@ -198,7 +198,7 @@ export class MiniTimerWindow {
     const win = this.win
     if (!win || win.isDestroyed()) return
     const w = Math.round(Math.max(180, Math.min(width, 520)))
-    const h = Math.round(Math.max(48, Math.min(height, 640)))
+    const h = Math.round(Math.max(40, Math.min(height, 640)))
     // The renderer has produced a real measurement — safe to reveal now.
     this.hasFitted = true
     const [x = 0, y = 0] = win.getPosition()

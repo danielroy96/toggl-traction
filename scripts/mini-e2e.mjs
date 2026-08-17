@@ -34,7 +34,7 @@ let win
 // macOS, then applyAlwaysOnTop (setAlwaysOnTop + setVisibleOnAllWorkspaces).
 ipcMain.handle('mini:set-content-size', (_e, width, height) => {
   const w = Math.round(Math.max(180, Math.min(width, 520)))
-  const h = Math.round(Math.max(48, Math.min(height, 640)))
+  const h = Math.round(Math.max(40, Math.min(height, 640)))
   if (win && !win.isDestroyed()) {
     const [x, y] = win.getPosition()
     const [, curH] = win.getSize()
