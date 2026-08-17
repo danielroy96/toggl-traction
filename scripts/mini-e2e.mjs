@@ -73,7 +73,7 @@ const measure = `(() => {
 
 app.whenReady().then(async () => {
   win = new BrowserWindow({
-    width: 232,
+    width: 300,
     height: 72,
     x: 60,
     y: 80,

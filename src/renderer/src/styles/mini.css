@@ -6,6 +6,7 @@
 }
 
 .mini {
+  position: relative;
   height: 100vh;
   display: flex;
   flex-direction: column;
@@ -31,8 +32,28 @@
 .mini input {
   cursor: text;
 }
-.mini--running {
-  border-color: var(--success);
+/* Running: instead of a solid green frame, draw short green brackets at the
+   four corners (viewfinder style). A single overlay paints a full green
+   rounded border, then a mask keeps only an L-sized square at each corner, so
+   the border shows only as corner arms. Non-interactive so drag still works. */
+.mini--running::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--success);
+  border-radius: inherit;
+  pointer-events: none;
+  --corner: 15px;
+  -webkit-mask:
+    linear-gradient(#000, #000) top left / var(--corner) var(--corner) no-repeat,
+    linear-gradient(#000, #000) top right / var(--corner) var(--corner) no-repeat,
+    linear-gradient(#000, #000) bottom left / var(--corner) var(--corner) no-repeat,
+    linear-gradient(#000, #000) bottom right / var(--corner) var(--corner) no-repeat;
+  mask:
+    linear-gradient(#000, #000) top left / var(--corner) var(--corner) no-repeat,
+    linear-gradient(#000, #000) top right / var(--corner) var(--corner) no-repeat,
+    linear-gradient(#000, #000) bottom left / var(--corner) var(--corner) no-repeat,
+    linear-gradient(#000, #000) bottom right / var(--corner) var(--corner) no-repeat;
 }
 
 /* Natural-height content wrapper the renderer measures to auto-size the window,
@@ -50,7 +71,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2);
+  padding: var(--space-1) var(--space-2);
 }
 
 /* Time + description/task label. This area is draggable (not a control). */
@@ -134,8 +155,8 @@
 .mini__btn {
   -webkit-app-region: no-drag;
   flex: none;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2rem;
+  height: 2rem;
 }
 
 /* Expanded editor area. */

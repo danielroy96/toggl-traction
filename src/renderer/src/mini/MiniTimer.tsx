@@ -49,7 +49,9 @@ export function MiniTimer(): JSX.Element {
     const el = contentRef.current
     if (!el || !window.toggl) return
     const sync = (): void => {
-      const width = expanded ? 268 : 232
+      // Fixed width in both states — wide enough for a ticket ref plus some
+      // description and the project/task line, with no jump on expand/collapse.
+      const width = 320
       // +2 accounts for the .mini 1px top/bottom border (box-sizing: border-box).
       const height = Math.ceil(el.getBoundingClientRect().height) + 2
       void window.toggl.mini.setContentSize(width, height)
