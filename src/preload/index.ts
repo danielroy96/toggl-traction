@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 import { contextBridge, ipcRenderer } from 'electron'
 import {
   CHANNELS,
@@ -87,3 +88,16 @@ const api = {
 export type TogglTractionApi = typeof api
 
 contextBridge.exposeInMainWorld('toggl', api)
+
+// Expose the OS platform to CSS so styles can match the native window chrome —
+// notably the frameless mini timer, whose corner radius must equal the OS
+// window corner radius (see src/renderer/src/styles/mini.css). Set on <html> as
+// a data attribute; the parser has created documentElement by preload time.
+function markPlatform(): void {
+  document.documentElement.dataset.platform = process.platform
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', markPlatform)
+} else {
+  markPlatform()
+}
