@@ -122,13 +122,9 @@
   height: 0.55rem;
 }
 
-.mini__chevron {
+.mini__pencil {
   flex: none;
   color: var(--text-muted);
-  transition: transform 0.15s ease;
-}
-.mini__chevron--up {
-  transform: rotate(180deg);
 }
 
 .mini__btn {

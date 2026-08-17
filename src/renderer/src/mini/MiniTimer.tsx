@@ -159,9 +159,9 @@ export function MiniTimer(): JSX.Element {
           className="mini__expand"
           onClick={toggleExpanded}
           aria-expanded={expanded}
-          aria-label={expanded ? 'Collapse timer' : 'Expand timer to edit'}
+          aria-label={expanded ? 'Collapse timer' : 'Edit time entry'}
         >
-          <Chevron expanded={expanded} />
+          <PencilIcon />
         </button>
 
         {/* Collapsed: quick round toggle in the header. Expanded: a full-width
@@ -225,17 +225,17 @@ function TimerIcon({ running }: { running: boolean }): JSX.Element {
   )
 }
 
-function Chevron({ expanded }: { expanded: boolean }): JSX.Element {
+function PencilIcon(): JSX.Element {
   return (
     <svg
-      className={`mini__chevron ${expanded ? 'mini__chevron--up' : ''}`}
+      className="mini__pencil"
       width="14"
       height="14"
       viewBox="0 0 24 24"
       fill="currentColor"
       aria-hidden="true"
     >
-      <path d="M7 10l5 5 5-5z" />
+      <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
     </svg>
   )
 }
