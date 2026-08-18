@@ -138,6 +138,13 @@ export interface GoogleCalendarStatus {
    * "Connect" action cannot run. The UI uses this to explain why.
    */
   configured: boolean
+  /**
+   * True when a previously-working connection was permanently rejected by Google
+   * (the refresh token expired or was revoked) and the stored credential has been
+   * discarded. `connected` is false in this state; the UI shows a reconnect prompt
+   * rather than the neutral "not connected" hint.
+   */
+  needsReauth?: boolean
 }
 
 /** Payload to start a new timer. */

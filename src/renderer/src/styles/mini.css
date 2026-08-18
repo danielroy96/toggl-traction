@@ -23,6 +23,15 @@
 .mini:active {
   cursor: grabbing;
 }
+/* The frameless window is clipped by the OS compositor to the platform's window
+   corner radius, so the card's own radius must equal it or the border peels away
+   from the true window edge at each corner. Windows 11 rounds frameless windows
+   to its small radius (~4 CSS px), much tighter than --radius-md; match it.
+   macOS/Linux keep --radius-md, which already matches their window chrome.
+   `data-platform` is set on <html> from the preload (see src/preload/index.ts). */
+:root[data-platform='win32'] .mini {
+  border-radius: 4px;
+}
 /* ...but interactive controls must opt out so clicks/typing register. */
 .mini button,
 .mini input,
@@ -122,13 +131,9 @@
   height: 0.55rem;
 }
 
-.mini__chevron {
+.mini__pencil {
   flex: none;
   color: var(--text-muted);
-  transition: transform 0.15s ease;
-}
-.mini__chevron--up {
-  transform: rotate(180deg);
 }
 
 .mini__btn {

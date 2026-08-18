@@ -4,6 +4,7 @@ import { useElapsed } from '../lib/useElapsed.js'
 import { formatDuration } from '../lib/format.js'
 import { ProjectTaskPicker } from './ProjectTaskPicker.js'
 import { DescriptionAutocomplete, type EntryDetails } from './DescriptionAutocomplete.js'
+import { EntryEditor } from './EntryEditor.js'
 
 /**
  * The primary timer control: a description field, project/task picker and a
@@ -20,6 +21,9 @@ export function TimerBar(): JSX.Element {
   const [description, setDescription] = useState('')
   const [projectId, setProjectId] = useState<number | null>(null)
   const [taskId, setTaskId] = useState<number | null>(null)
+  // Opens the full entry editor for the running timer, where the start time can
+  // be overridden (e.g. when you started tracking late).
+  const [editing, setEditing] = useState(false)
 
   // When a timer is running, mirror its description/project/task into the fields.
   useEffect(() => {
@@ -34,6 +38,11 @@ export function TimerBar(): JSX.Element {
     if (timer.pending) return
     if (running) {
       void stop()
+      // Clear the detail fields on stop: the user has finished this entry and
+      // is likely about to start a different one from a clean slate.
+      setDescription('')
+      setProjectId(null)
+      setTaskId(null)
     } else {
       void start({ description: description.trim(), projectId, taskId })
     }
@@ -78,6 +87,7 @@ export function TimerBar(): JSX.Element {
   }
 
   return (
+    <>
     <form className="timer-bar" onSubmit={onSubmit} aria-label="Timer">
       <div className="timer-bar__desc">
         <DescriptionAutocomplete
@@ -110,6 +120,18 @@ export function TimerBar(): JSX.Element {
         {formatDuration(running ? elapsed : 0)}
       </div>
 
+      {running && (
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={() => setEditing(true)}
+          aria-label="Edit running entry, including its start time"
+          title="Edit entry / adjust start time"
+        >
+          <EditIcon />
+        </button>
+      )}
+
       <button
         type="button"
         className={`btn-round ${running ? 'btn-round--stop' : 'btn-round--start'}`}
@@ -134,6 +156,11 @@ export function TimerBar(): JSX.Element {
         </span>
       )}
     </form>
+
+      {running && editing && (
+        <EntryEditor entry={running} onClose={() => setEditing(false)} />
+      )}
+    </>
   )
 }
 
@@ -141,6 +168,13 @@ function PlayIcon(): JSX.Element {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
       <path d="M8 5v14l11-7z" />
+    </svg>
+  )
+}
+function EditIcon(): JSX.Element {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+      <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
     </svg>
   )
 }

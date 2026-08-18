@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import type {
   AppSettings,
   TimerState,
@@ -140,17 +141,20 @@ export function MiniTimer(): JSX.Element {
           {/* Redundant with the editable fields when expanded, so collapsed-only. */}
           {!expanded && (
             <span className="mini__summary">
-              <span className="mini__desc">
+              <TruncatedText
+                className="mini__desc"
+                title={running ? running.description || 'No description' : 'Stopped'}
+              >
                 {running ? running.description || 'No description' : 'Stopped'}
-              </span>
-              <span className="mini__meta">
+              </TruncatedText>
+              <TruncatedText className="mini__meta" title={meta}>
                 <span
                   className="project-dot mini__dot"
                   style={{ background: project?.color ?? 'var(--border-strong)' }}
                   aria-hidden="true"
                 />
                 {meta}
-              </span>
+              </TruncatedText>
             </span>
           )}
         </div>
@@ -159,9 +163,9 @@ export function MiniTimer(): JSX.Element {
           className="mini__expand"
           onClick={toggleExpanded}
           aria-expanded={expanded}
-          aria-label={expanded ? 'Collapse timer' : 'Expand timer to edit'}
+          aria-label={expanded ? 'Collapse timer' : 'Edit time entry'}
         >
-          <Chevron expanded={expanded} />
+          <PencilIcon />
         </button>
 
         {/* Collapsed: quick round toggle in the header. Expanded: a full-width
@@ -213,6 +217,43 @@ export function MiniTimer(): JSX.Element {
   )
 }
 
+/**
+ * An inline text element that shows a native tooltip with its full content only
+ * when the text is actually clipped by the ellipsis. We compare scroll vs client
+ * width (and re-check on resize) so the tooltip never appears for text that fits.
+ */
+function TruncatedText({
+  className,
+  title,
+  children
+}: {
+  className?: string
+  title: string
+  children: ReactNode
+}): JSX.Element {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [tip, setTip] = useState<string | undefined>(undefined)
+
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const check = (): void => {
+      const overflowing = el.scrollWidth > el.clientWidth
+      setTip(overflowing ? title : undefined)
+    }
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [title])
+
+  return (
+    <span ref={ref} className={className} title={tip}>
+      {children}
+    </span>
+  )
+}
+
 function TimerIcon({ running }: { running: boolean }): JSX.Element {
   return running ? (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -225,17 +266,17 @@ function TimerIcon({ running }: { running: boolean }): JSX.Element {
   )
 }
 
-function Chevron({ expanded }: { expanded: boolean }): JSX.Element {
+function PencilIcon(): JSX.Element {
   return (
     <svg
-      className={`mini__chevron ${expanded ? 'mini__chevron--up' : ''}`}
+      className="mini__pencil"
       width="14"
       height="14"
       viewBox="0 0 24 24"
       fill="currentColor"
       aria-hidden="true"
     >
-      <path d="M7 10l5 5 5-5z" />
+      <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
     </svg>
   )
 }
