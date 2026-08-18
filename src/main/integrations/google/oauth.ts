@@ -10,6 +10,7 @@ import {
   USERINFO_ENDPOINT,
   type OAuthConfig
 } from './config.js'
+import { OAuthTokenError } from './oauth-errors.js'
 
 /**
  * Google OAuth 2.0 for the desktop app, using the loopback-redirect + PKCE
@@ -165,13 +166,21 @@ async function postToken(body: URLSearchParams): Promise<TokenResponse> {
   const text = await res.text()
   if (!res.ok) {
     let detail = text.slice(0, 200)
+    let code: string | undefined
     try {
       const j = JSON.parse(text) as { error_description?: string; error?: string }
+      code = j.error
       detail = j.error_description ?? j.error ?? detail
     } catch {
       /* keep raw text */
     }
-    throw new Error(`Google token request failed (${res.status}): ${detail}`)
+    // Tag with Google's `error` code so callers can tell a dead refresh token
+    // (invalid_grant → re-auth) apart from a transient failure worth retrying.
+    throw new OAuthTokenError(
+      `Google token request failed (${res.status}): ${detail}`,
+      res.status,
+      code
+    )
   }
   const json = JSON.parse(text) as {
     access_token: string

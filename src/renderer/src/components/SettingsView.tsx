@@ -179,6 +179,20 @@ function CalendarConnection({
     )
   }
 
+  if (status.needsReauth) {
+    return (
+      <div className="integration-connect">
+        <span className="warn" role="alert">
+          Google Calendar access expired{status.email ? ` for ${status.email}` : ''}.
+          Reconnect to keep suggesting entries from your meetings.
+        </span>
+        <button className="btn btn--accent" onClick={onConnect}>
+          Reconnect Google Calendar
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="integration-connect">
       {status.connected ? (
