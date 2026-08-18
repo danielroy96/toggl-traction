@@ -193,3 +193,44 @@ the UI, but their data-gathering is stubbed for this iteration:
 
 Each is a clean drop-in point: implement the one `read*/fetch*` function marked
 `SCAFFOLD` in the source and the rest of the pipeline lights up.
+
+## Google Calendar: keeping the connection alive
+
+The Calendar integration stores a long-lived **refresh token** (encrypted via
+`safeStorage`) and trades it for short-lived access tokens on demand
+(`src/main/integrations/google/`). The app never revokes its own credential — a
+"disconnect" the user didn't ask for always means **Google invalidated the
+refresh token**. The dominant cause is a Google Cloud misconfiguration, so most
+prevention lives in the console, not the code:
+
+- **Publish the OAuth consent screen to _In production_.** While it is in
+  _Testing_, Google **expires every refresh token after 7 days**, so the
+  connection dies about once a week no matter what the app does. Publishing is
+  the single most important fix. (A read-only Calendar app using only the
+  `openid`, `email`, and `calendar.events.readonly` scopes generally does not
+  require Google verification to run in production.)
+- Other Google-side invalidations to be aware of: a refresh token unused for
+  **6 months**, the user changing their Google password, the user revoking the
+  app at <https://myaccount.google.com/permissions>, or exceeding **50 live
+  refresh tokens** for the same client+account (older tokens are silently
+  evicted — avoid reconnecting in a loop).
+
+The client is configured PKCE-first with `access_type=offline` and
+`prompt=consent` so a genuine refresh token is always issued on (re)consent.
+
+### How the app handles a dead token now
+
+Defense-in-depth so an invalidation degrades gracefully instead of silently:
+
+- **Permanent vs transient errors are distinguished.** A Google `invalid_grant`
+  (expired/revoked refresh token) is classified as permanent; network blips,
+  timeouts and 5xx are transient (`google/oauth-errors.ts`).
+- **Transient refresh failures retry** with a short backoff before the poll
+  gives up, so a momentary blip doesn't drop suggestions.
+- **A permanent failure self-heals the state**: the dead credential is discarded
+  and the connection flips to a `needsReauth` status, which the Settings screen
+  surfaces as an explicit **"Reconnect Google Calendar"** prompt — instead of
+  forever showing a healthy-looking "Connected" that produces nothing.
+- A refresh that resolves after the user has disconnected/reconnected is
+  discarded (guarded by a connection epoch), so it can't resurrect a
+  disconnected account or clobber a fresh one.
