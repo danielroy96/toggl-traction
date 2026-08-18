@@ -146,6 +146,11 @@
   color: var(--text-muted);
   font-size: 0.9rem;
 }
+/* Reconnect prompt shown when a linked account's access has expired. */
+.integration-connect .warn {
+  color: var(--warning);
+  font-size: 0.9rem;
+}
 
 .card {
   background: var(--surface);
