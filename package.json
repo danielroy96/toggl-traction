@@ -22,6 +22,7 @@
     "test": "node scripts/run-tests.mjs",
     "dev:server": "node scripts/run-dev-server.mjs",
     "dev:web": "vite --config vite.preview.config.ts",
+    "make:icon": "node scripts/make-icon.mjs",
     "check:contrast": "node scripts/check-contrast.mjs",
     "verify": "npm run typecheck && npm run check:contrast && npm run test && npm run build"
   },
@@ -62,6 +63,7 @@
       "identity": null
     },
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         "nsis",
         "zip"

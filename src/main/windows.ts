@@ -6,6 +6,18 @@ const isDev = !!process.env['ELECTRON_RENDERER_URL']
 // electron-vite emits the preload as an ESM `.mjs` (the project is type:module).
 const preload = join(__dirname, '../preload/index.mjs')
 
+/**
+ * Resolve the window icon for dev/Linux. Packaged Windows/mac builds take their
+ * icon from the executable/bundle (electron-builder embeds it), so this only
+ * needs to find the source asset under build/ — returning undefined when it's
+ * absent lets Electron fall back to its default without erroring.
+ */
+function appIcon(): string | undefined {
+  const file = process.platform === 'win32' ? 'icon.ico' : 'icon.png'
+  const path = join(__dirname, '../../build', file)
+  return existsSync(path) ? path : undefined
+}
+
 /** Load either the dev server URL or the built HTML for a named entry. */
 function loadEntry(win: BrowserWindow, entry: 'index' | 'mini'): void {
   const devUrl = process.env['ELECTRON_RENDERER_URL']
@@ -24,6 +36,7 @@ export function createMainWindow(): BrowserWindow {
     minHeight: 480,
     show: false,
     title: 'Toggl Traction',
+    icon: appIcon(),
     backgroundColor: '#12131a',
     autoHideMenuBar: true,
     webPreferences: {
