@@ -164,14 +164,21 @@ class AppController {
   }
 
   private refreshMiniVisibility(): void {
+    const allowed =
+      !!this.session && this.settings.miniTimerEnabled && !this.miniManuallyHidden
+    if (!allowed) {
+      if (this.mini.isVisible()) this.mini.hide()
+      return
+    }
+    // Reveal the mini automatically while a timer runs, or whenever the user
+    // keeps it always-visible. Once it is on screen it stays put: stopping the
+    // clock must not make it vanish (you often want to start another entry from
+    // it). It only comes down on an explicit dismiss (menu/tray), sign-out, or
+    // disabling the feature — all handled by the `allowed` check above.
     const running = !!this.timer.getState().running
-    const wants =
-      !!this.session &&
-      this.settings.miniTimerEnabled &&
-      !this.miniManuallyHidden &&
-      (running || this.settings.miniTimerAlwaysVisible)
-    if (wants && !this.mini.isVisible()) this.mini.show()
-    else if (!wants && this.mini.isVisible()) this.mini.hide()
+    if ((running || this.settings.miniTimerAlwaysVisible) && !this.mini.isVisible()) {
+      this.mini.show()
+    }
   }
 
   /** User dismissed the mini timer from its menu — keep it hidden until they
