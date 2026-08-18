@@ -38,6 +38,11 @@ export function TimerBar(): JSX.Element {
     if (timer.pending) return
     if (running) {
       void stop()
+      // Clear the detail fields on stop: the user has finished this entry and
+      // is likely about to start a different one from a clean slate.
+      setDescription('')
+      setProjectId(null)
+      setTaskId(null)
     } else {
       void start({ description: description.trim(), projectId, taskId })
     }
