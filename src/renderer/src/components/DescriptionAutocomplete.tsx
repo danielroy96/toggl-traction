@@ -158,8 +158,10 @@ export function DescriptionAutocomplete({
                       style={{ background: project.color }}
                       aria-hidden="true"
                     />
-                    {project.name}
-                    {task && <span className="badge__task"> · {task.name}</span>}
+                    <span className="badge__label">
+                      {project.name}
+                      {task && <span className="badge__task"> · {task.name}</span>}
+                    </span>
                   </span>
                 )}
               </li>

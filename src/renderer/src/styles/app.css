@@ -163,9 +163,15 @@
 .autocomplete__opt .badge {
   flex: none;
   max-width: 14rem;
+  min-width: 0;
+}
+/* The badge is a flex row (dot + label), so the ellipsis must live on the
+   label — `text-overflow` has no effect on the flex container itself. */
+.badge__label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 .timer-bar__elapsed {
   font-size: 1.6rem;
