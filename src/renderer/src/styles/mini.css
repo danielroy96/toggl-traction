@@ -116,10 +116,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Block (not flex) so `text-overflow: ellipsis` actually applies to the
+   project/task text — on a flex container it has no effect and the name would
+   be clipped mid-word instead. The dot flows inline alongside the text. */
 .mini__meta {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
+  display: block;
   font-size: 0.72rem;
   color: var(--text-muted);
   overflow: hidden;
@@ -129,6 +130,9 @@
 .mini__dot {
   width: 0.55rem;
   height: 0.55rem;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 0.3rem;
 }
 
 .mini__pencil {
