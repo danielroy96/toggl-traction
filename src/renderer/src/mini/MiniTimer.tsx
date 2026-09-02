@@ -8,8 +8,11 @@ import type {
 } from '../../../shared/types.js'
 import { useElapsed } from '../lib/useElapsed.js'
 import { useAppearance } from '../lib/useAppearance.js'
-import { formatDuration } from '../lib/format.js'
+import { formatDuration, formatSyncedAt } from '../lib/format.js'
 import { ProjectTaskPicker } from '../components/ProjectTaskPicker.js'
+
+/** Keep in sync with MINI_WIDTH in src/main/windows.ts. */
+const MINI_WIDTH = 352
 
 const emptyTimer: TimerState = {
   running: null,
@@ -39,6 +42,7 @@ export function MiniTimer(): JSX.Element {
   const [taskId, setTaskId] = useState<number | null>(null)
   const [description, setDescription] = useState('')
   const [expanded, setExpanded] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
   const elapsed = useElapsed(timer.running?.start ?? null)
 
@@ -52,7 +56,7 @@ export function MiniTimer(): JSX.Element {
     const sync = (): void => {
       // Fixed width in both states — wide enough for a ticket ref plus some
       // description and the project/task line, with no jump on expand/collapse.
-      const width = 320
+      const width = MINI_WIDTH
       // +2 accounts for the .mini 1px top/bottom border (box-sizing: border-box).
       const height = Math.ceil(el.getBoundingClientRect().height) + 2
       void window.toggl.mini.setContentSize(width, height)
@@ -92,6 +96,24 @@ export function MiniTimer(): JSX.Element {
   // Toggling expanded changes the rendered content; the layout effect above
   // re-measures and resizes the window to fit.
   const toggleExpanded = (): void => setExpanded((v) => !v)
+
+  /**
+   * Pull the current state from Toggl on demand. A timer started elsewhere (the
+   * web app, another device) only reaches us on the main process's slow poll —
+   * deliberately slow, because the API rate limit is tight — so this is how you
+   * catch the mini timer up immediately.
+   */
+  const onRefresh = (): void => {
+    if (syncing || !window.toggl) return
+    setSyncing(true)
+    void window.toggl.timer
+      .sync()
+      .then(setTimer)
+      .catch(() => {
+        /* the main process records the failure in timer.error */
+      })
+      .finally(() => setSyncing(false))
+  }
 
   const onToggleTimer = (): void => {
     if (timer.pending || !window.toggl) return
@@ -160,7 +182,17 @@ export function MiniTimer(): JSX.Element {
         </div>
 
         <button
-          className="mini__expand"
+          className="mini__icon-btn"
+          onClick={onRefresh}
+          disabled={syncing}
+          aria-label={syncing ? 'Refreshing from Toggl' : 'Refresh from Toggl'}
+          title={`Refresh from Toggl — ${formatSyncedAt(timer.lastSyncedAt)}`}
+        >
+          <RefreshIcon className={syncing ? 'spin' : undefined} />
+        </button>
+
+        <button
+          className="mini__icon-btn"
           onClick={toggleExpanded}
           aria-expanded={expanded}
           aria-label={expanded ? 'Collapse timer' : 'Edit time entry'}
@@ -266,10 +298,24 @@ function TimerIcon({ running }: { running: boolean }): JSX.Element {
   )
 }
 
+function RefreshIcon({ className }: { className?: string }): JSX.Element {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+    </svg>
+  )
+}
+
 function PencilIcon(): JSX.Element {
   return (
     <svg
-      className="mini__pencil"
       width="14"
       height="14"
       viewBox="0 0 24 24"

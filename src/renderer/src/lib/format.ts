@@ -26,6 +26,16 @@ export function formatDurationCompact(totalSeconds: number): string {
   return `${s}s`
 }
 
+/**
+ * "Last synced 14:32" for the refresh control's tooltip, so it is obvious how
+ * fresh the timer state is before deciding whether to press it.
+ */
+export function formatSyncedAt(epochMs: number | null): string {
+  if (!epochMs) return 'Not synced yet'
+  const at = new Date(epochMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return `Last synced ${at}`
+}
+
 export function formatClock(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }

@@ -59,7 +59,7 @@ export function createMainWindow(): BrowserWindow {
 
 // Initial size of the compact mini timer; the renderer then reports its exact
 // content height and the window auto-fits via setContentSize().
-const MINI_WIDTH = 320
+const MINI_WIDTH = 352
 const MINI_HEIGHT = 64
 // Highest level that stays above normal windows without fighting the OS UI.
 const AOT_LEVEL = 'screen-saver' as const

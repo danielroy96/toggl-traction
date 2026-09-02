@@ -73,8 +73,10 @@
   text-align: left;
 }
 
-/* Expand/collapse toggle. */
-.mini__expand {
+/* Compact header controls (refresh, expand/collapse). Smaller than the app's
+   44px .icon-btn target by necessity — the window is only 320px wide — but they
+   keep a full 2rem hit area and a visible focus ring from global.css. */
+.mini__icon-btn {
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -86,9 +88,13 @@
   background: transparent;
   color: var(--text-muted);
 }
-.mini__expand:hover {
+.mini__icon-btn:hover {
   background: var(--surface-2);
   color: var(--text);
+}
+.mini__icon-btn[disabled] {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .mini__time {
@@ -133,11 +139,6 @@
   display: inline-block;
   vertical-align: middle;
   margin-right: 0.3rem;
-}
-
-.mini__pencil {
-  flex: none;
-  color: var(--text-muted);
 }
 
 .mini__btn {
