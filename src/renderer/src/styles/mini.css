@@ -1,21 +1,36 @@
 /* Styles for the always-on-top mini timer window. */
 
+/*
+ * The mini window is transparent and sized by the renderer to exactly fit the
+ * card plus whatever dropdown is open (see MiniTimer.tsx). Nothing here may be
+ * tied to the viewport: a `100vh` anywhere in this chain would make the thing
+ * we measure depend on the size we just asked for, which is a resize feedback
+ * loop — the window oscillates and the content jumps around inside it. So the
+ * card is laid out at natural height from the top-left, and the window is
+ * fitted to it, never the other way round.
+ */
 .mini-body {
   background: transparent;
-  overflow: hidden;
+  /* `clip`, not `hidden`: an open dropdown overflows the card, and `hidden`
+     would make that a real (if scrollbar-less) scroll container that anything
+     calling focus() or scrollIntoView() can shove around. `clip` creates no
+     scroll container at all, so the card physically cannot be scrolled out of
+     the window. */
+  overflow: clip;
+  height: auto;
+}
+.mini-body #root {
+  height: auto;
 }
 
 .mini {
-  height: 100vh;
   display: flex;
   flex-direction: column;
-  /* Centre the content if the window is ever taller than it (e.g. the
-     setContentSize min-height floor), so the row never sticks to the top. */
-  justify-content: center;
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
-  overflow: hidden;
+  /* No `overflow: hidden`: the dropdowns are overlays that deliberately hang
+     below the card, into the transparent part of the window. */
   /* The whole window is a drag handle... */
   -webkit-app-region: drag;
   cursor: grab;
@@ -23,20 +38,23 @@
 .mini:active {
   cursor: grabbing;
 }
-/* The frameless window is clipped by the OS compositor to the platform's window
-   corner radius, so the card's own radius must equal it or the border peels away
-   from the true window edge at each corner. Windows 11 rounds frameless windows
-   to its small radius (~4 CSS px), much tighter than --radius-md; match it.
-   macOS/Linux keep --radius-md, which already matches their window chrome.
+/* Match the radius Windows 11 gives its own small windows (~4 CSS px), much
+   tighter than --radius-md. Now that the window is transparent the OS composites
+   the card's corners as drawn rather than clipping them, so this is purely a
+   "look native on this platform" choice; macOS/Linux keep --radius-md, which
+   already matches their window chrome.
    `data-platform` is set on <html> from the preload (see src/preload/index.ts). */
 :root[data-platform='win32'] .mini {
   border-radius: 4px;
 }
-/* ...but interactive controls must opt out so clicks/typing register. */
+/* ...but interactive controls must opt out so clicks/typing register. The two
+   dropdown wrappers are named as well as the controls themselves: their panels
+   are descendants, and a drag region would otherwise swallow clicks on the
+   options inside them. */
 .mini button,
 .mini input,
-.mini select,
-.mini .select {
+.mini .autocomplete,
+.mini .ptpick {
   -webkit-app-region: no-drag;
   cursor: pointer;
 }
@@ -44,27 +62,91 @@
   cursor: text;
 }
 
-/* Natural-height content wrapper the renderer measures to auto-size the window,
-   so there is never empty space at the bottom. `flex: none` is essential: as a
-   flex child of `.mini` (height:100vh, overflow:hidden) it would otherwise be
-   shrunk to the current window height at the moment we measure it while a
-   dropdown opens, reporting too short a height and clipping the content. */
-.mini__content {
-  display: flex;
-  flex-direction: column;
-  flex: none;
+/* The focus ring is drawn INSIDE the control here. At the app's usual
+   `outline-offset: 2px` a 3px ring reaches 5px past the field, which on a
+   single 44px row means it laps over the neighbouring button — and past the
+   bottom of the card, where the window edge would clip it. Inset keeps the full
+   3px ring and its contrast while staying inside the control's own box. */
+.mini :focus-visible {
+  outline-offset: -2px;
 }
 
-.mini__header {
+/* Everything on one line: elapsed time, the description field, then the
+   controls. The row is the positioning context for the description dropdown
+   (see below), so it can span the card rather than the narrow field. */
+.mini__row {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  /* Tight between the three controls; the field gets the slack back as its own
+     margin, so it stays the widest thing that isn't the clock. */
+  gap: var(--space-1);
   padding: var(--space-1) var(--space-2);
 }
 
-/* Compact header control (refresh). Smaller than the app's 44px .icon-btn
-   target by necessity — the window is only 320px wide — but it keeps a full
-   2rem hit area and a visible focus ring from global.css. */
+.mini__time {
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1;
+  flex: none;
+  color: var(--text);
+  /* The only real drag handle left on the row, so give it a little room. */
+  padding-left: var(--space-1);
+}
+
+/* Once the field holds a project tag the border moves out to the field, so the
+   input has to give back exactly the 2px that border occupies — otherwise the
+   row changes height the moment an entry gains a project. */
+.mini .autocomplete--tagged .autocomplete__field {
+  min-height: 2.25rem;
+}
+.mini .autocomplete--tagged .input {
+  min-height: 0;
+}
+
+/*
+ * The description reads as plain text on the card and only outlines itself when
+ * you point at it, so the resting timer is a clean line rather than a form.
+ *
+ * The border is always *present* and merely transparent: switching border-width
+ * on and off would move the row by 2px every time the pointer crossed it. Which
+ * element owns the border depends on whether a project tag is in the field —
+ * tagged, the field wraps input + tag and carries it; untagged, the input has
+ * it to itself.
+ *
+ * Focus keeps the outline as well as the focus ring: it should not vanish
+ * mid-edit just because the pointer moved away.
+ */
+.mini .autocomplete:not(.autocomplete--tagged) .input,
+.mini .autocomplete--tagged .autocomplete__field {
+  border-color: transparent;
+}
+.mini .autocomplete:not(.autocomplete--tagged):hover .input,
+.mini .autocomplete:not(.autocomplete--tagged):focus-within .input,
+.mini .autocomplete--tagged:hover .autocomplete__field,
+.mini .autocomplete--tagged:focus-within .autocomplete__field {
+  border-color: var(--border-strong);
+}
+
+/* The description field takes whatever the time and controls leave. */
+.mini__row .autocomplete {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  margin: 0 var(--space-1);
+  /* Static, so the list below resolves against .mini__row and can span the
+     full card width instead of being pinned to this narrow field. */
+  position: static;
+}
+.mini .autocomplete__list {
+  top: calc(100% + 3px);
+  left: var(--space-2);
+  right: var(--space-2);
+}
+
+/* Compact header controls (refresh, expand). Smaller than the app's 44px
+   .icon-btn target by necessity — this is a single-row widget — but they keep
+   a full 2rem hit area and a visible focus ring. */
 .mini__icon-btn {
   flex: none;
   display: inline-flex;
@@ -86,39 +168,31 @@
   cursor: default;
 }
 
-.mini__time {
-  font-size: 1.4rem;
-  font-weight: 700;
-  line-height: 1;
-  flex: none;
-  color: var(--text);
-}
-
-/* Running/stopped label, filling the drag area between time and button. */
-.mini__status {
-  flex: 1;
-  min-width: 0;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .mini__btn {
-  -webkit-app-region: no-drag;
   flex: none;
-  width: 2rem;
-  height: 2rem;
+  width: 2.125rem;
+  height: 2.125rem;
 }
 
-/* Always-visible description + project/task fields. */
-.mini__fields {
-  -webkit-app-region: no-drag;
+/* Revealed by the expand control: the project/task picker, on its own line. */
+.mini__more {
   padding: 0 var(--space-2) var(--space-2);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+}
+
+/* The dropdowns overlay the transparent area below the card, so they need a
+   shadow to read as floating — but a tighter one than the app's, because the
+   window only reserves a little room below the panel for it (OVERLAY_SHADOW in
+   MiniTimer.tsx) and a wide soft shadow would be cut off mid-fade. */
+.mini .autocomplete__list,
+.mini .ptpick__panel {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+}
+/* Cap how far a dropdown may hang below the card. Every pixel of window below
+   the card is transparent but still swallows clicks meant for the app behind
+   it, so the lists scroll here well before they would in the main window. */
+.mini .autocomplete__list {
+  max-height: 11rem;
+}
+.mini .ptpick__list {
+  max-height: 9rem;
 }

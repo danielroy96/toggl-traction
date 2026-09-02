@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type {
   AppSettings,
   TimeEntry,
@@ -12,7 +12,8 @@ import { formatDuration, formatSyncedAt } from '../lib/format.js'
 import { ProjectTaskPicker } from '../components/ProjectTaskPicker.js'
 import {
   DescriptionAutocomplete,
-  type EntryDetails
+  type EntryDetails,
+  type PickVia
 } from '../components/DescriptionAutocomplete.js'
 
 const emptyTimer: TimerState = {
@@ -23,16 +24,39 @@ const emptyTimer: TimerState = {
 }
 
 /**
+ * Fixed width. Set by what has to fit on the one line and still be readable:
+ * the elapsed time, the description, the project/task tag and three controls.
+ * Even at this width the card is a fraction of the area the two-row layout took.
+ */
+const MINI_WIDTH = 500
+/** The dropdowns that float outside the card and must not be clipped. */
+const OVERLAY_SEL = '.autocomplete__list, .ptpick__panel'
+/** Room below an open dropdown so its soft shadow isn't cut off mid-fade. */
+const OVERLAY_SHADOW = 10
+/**
+ * How long a shrink waits before it is sent. Closing one dropdown to open
+ * another produces a shrink immediately followed by a grow; sending both makes
+ * the window visibly snap twice. Growing is instant (the dropdown must not be
+ * clipped), shrinking is deferred and cancelled if the space is claimed again.
+ */
+const SHRINK_DELAY_MS = 180
+
+/**
  * The always-on-top mini timer.
  *
- * One always-editable state: elapsed time and a start/stop button on the drag
- * row, then the same description autocomplete and project/task picker the main
- * window's timer bar uses — so "repeat what I did before" behaves identically
- * in both, and there is no edit mode to enter first.
+ * One line: elapsed time, the description field, refresh, expand, start/stop.
+ * Choosing a suggestion fills in its project and task too, so that single field
+ * covers the common "repeat what I did before" case — and choosing one with
+ * Enter starts the timer outright, because Enter in this field has always meant
+ * "go".
  *
- * Both dropdowns render inline (in normal flow) rather than as overlays: the
- * window is sized to its content, so an overlay would be clipped at the window
- * edge. That is why the auto-fit below stays; the height is otherwise stable.
+ * Editing project/task by hand is the uncommon case, so it lives behind the
+ * expand button rather than costing a permanent second row.
+ *
+ * The window is transparent and sized to the card plus whatever dropdown is
+ * currently open, so the dropdowns overlay like real dropdowns instead of
+ * growing the card. `requestSize` below is what keeps those steps from
+ * flickering.
  *
  * It is self-contained (talks to window.toggl directly) so it never depends on
  * the main window being open.
@@ -47,29 +71,80 @@ export function MiniTimer(): JSX.Element {
   const [taskId, setTaskId] = useState<number | null>(null)
   const [description, setDescription] = useState('')
   const [syncing, setSyncing] = useState(false)
-  const contentRef = useRef<HTMLDivElement>(null)
+  const [expanded, setExpanded] = useState(false)
+  // Which dropdowns are actually showing a panel. Only used to re-run the
+  // measurement below — a panel overhangs the card, so the window must grow.
+  const [descOpen, setDescOpen] = useState(false)
+  const [pickOpen, setPickOpen] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
   const elapsed = useElapsed(timer.running?.start ?? null)
 
   useAppearance(settings)
 
-  // Auto-fit the window to the exact rendered content height (no empty space),
-  // re-measuring whenever the content or font scale changes.
-  useLayoutEffect(() => {
-    const el = contentRef.current
-    if (!el || !window.toggl) return
-    const sync = (): void => {
-      // Fixed width — wide enough for a ticket ref plus some description and
-      // the project/task line.
-      const width = 320
-      // +2 accounts for the .mini 1px top/bottom border (box-sizing: border-box).
-      const height = Math.ceil(el.getBoundingClientRect().height) + 2
-      void window.toggl.mini.setContentSize(width, height)
+  // Last size sent to the main process, plus a pending deferred shrink.
+  const sentSize = useRef({ w: 0, h: 0 })
+  const shrinkTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const requestSize = useCallback((w: number, h: number): void => {
+    const cancelShrink = (): void => {
+      if (shrinkTimer.current) {
+        clearTimeout(shrinkTimer.current)
+        shrinkTimer.current = null
+      }
     }
-    sync()
-    const ro = new ResizeObserver(sync)
-    ro.observe(el)
+    // Already this size (possibly because a queued shrink is now obsolete).
+    if (w === sentSize.current.w && h === sentSize.current.h) {
+      cancelShrink()
+      return
+    }
+    const send = (): void => {
+      cancelShrink()
+      sentSize.current = { w, h }
+      void window.toggl?.mini.setContentSize(w, h)
+    }
+    cancelShrink()
+    if (h >= sentSize.current.h) send()
+    else shrinkTimer.current = setTimeout(send, SHRINK_DELAY_MS)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (shrinkTimer.current) clearTimeout(shrinkTimer.current)
+    }
+  }, [])
+
+  /*
+   * Fit the window to the card plus any dropdown hanging below it. The card
+   * sits at the top of a transparent window with natural height, so its
+   * viewport-relative bottom *is* the card height; a dropdown that reaches
+   * further down simply raises that number, and the rest of the window stays
+   * see-through. Re-measured whenever a panel opens/closes or resizes (typing
+   * filters the list), the card grows/shrinks, or the font scale changes.
+   */
+  useLayoutEffect(() => {
+    const card = cardRef.current
+    if (!card || !window.toggl) return
+    const overlays = (): HTMLElement[] =>
+      Array.from(document.querySelectorAll<HTMLElement>(OVERLAY_SEL))
+    const measure = (): void => {
+      // Document coordinates (rect + scrollY), not viewport ones: if anything
+      // ever does manage to scroll the page, a viewport-relative bottom would
+      // silently under-measure and clip the dropdown.
+      const y = window.scrollY
+      let bottom = card.getBoundingClientRect().bottom + y
+      for (const el of overlays()) {
+        bottom = Math.max(bottom, el.getBoundingClientRect().bottom + y + OVERLAY_SHADOW)
+      }
+      requestSize(MINI_WIDTH, Math.ceil(bottom))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(card)
+    for (const el of overlays()) ro.observe(el)
     return () => ro.disconnect()
-  }, [settings?.fontScale])
+    // `descOpen`/`pickOpen` mount and unmount the panels, so the observer has
+    // to be rebuilt around the current set.
+  }, [descOpen, pickOpen, expanded, settings?.fontScale, requestSize])
 
   useEffect(() => {
     const api = window.toggl
@@ -125,6 +200,12 @@ export function MiniTimer(): JSX.Element {
       .finally(() => setSyncing(false))
   }
 
+  /** Start with explicit values — callers often have them before state lands. */
+  const startTimer = (desc: string, pid: number | null, tid: number | null): void => {
+    if (!window.toggl) return
+    void window.toggl.timer.start({ description: desc.trim(), projectId: pid, taskId: tid })
+  }
+
   const onToggleTimer = (): void => {
     if (timer.pending || !window.toggl) return
     if (running) {
@@ -135,7 +216,7 @@ export function MiniTimer(): JSX.Element {
       setProjectId(null)
       setTaskId(null)
     } else {
-      void window.toggl.timer.start({ description: description.trim(), projectId, taskId })
+      startTimer(description, projectId, taskId)
     }
   }
 
@@ -160,14 +241,22 @@ export function MiniTimer(): JSX.Element {
     }
   }
 
-  // Copy a recent entry's details (description + project/task) into the fields.
-  const onPickSuggestion = (d: EntryDetails): void => {
+  /**
+   * Copy a recent entry's details into the fields — this is what lets the one
+   * visible field set description, project and task at once.
+   *
+   * Choosing with Enter also starts the timer when nothing is running. Enter in
+   * this field already means "start" for free text, so it means the same for a
+   * suggestion; clicking one only fills the fields, as a click always has.
+   */
+  const onPickSuggestion = (d: EntryDetails, via: PickVia): void => {
     const pid = d.project_id ?? null
     const tid = d.task_id ?? null
     setDescription(d.description)
     setProjectId(pid)
     setTaskId(tid)
-    patchRunning({ description: d.description, project_id: pid, task_id: tid })
+    if (running) patchRunning({ description: d.description, project_id: pid, task_id: tid })
+    else if (via === 'enter') startTimer(d.description, pid, tid)
   }
 
   // Enter in the description field saves it while running, else starts.
@@ -177,16 +266,47 @@ export function MiniTimer(): JSX.Element {
     else onToggleTimer()
   }
 
+  const project = projects.find((p) => p.id === projectId)
+  const task = tasks.find((t) => t.id === taskId)
+  const selection = project
+    ? `${project.name}${task ? ` · ${task.name}` : ''}`
+    : 'No project'
+  /*
+   * While collapsed the picker is not on screen, so the field carries the
+   * booking itself: the project's colour as a dot, plus the task name — or the
+   * project name when the entry has no task. Expanded, the picker below says
+   * the same thing in full, so the tag would only be repeating it.
+   */
+  const fieldTag =
+    !expanded && project
+      ? { label: task?.name ?? project.name, color: project.color, title: selection }
+      : null
+
   return (
-    <div className={`mini ${running ? 'mini--running' : ''}`}>
-     <div className="mini__content" ref={contentRef}>
-      {/* Draggable glance row — dragging it moves the OS window. */}
-      <div className="mini__header">
+    <div className="mini" ref={cardRef}>
+      <form className="mini__row" onSubmit={onSubmit}>
+        {/* The elapsed time doubles as the window's drag handle. */}
         <span className="mini__time mono" role="timer" aria-live="off">
           {formatDuration(running ? elapsed : 0)}
         </span>
-        <span className="mini__status">{running ? 'Tracking' : 'Stopped'}</span>
+
+        <DescriptionAutocomplete
+          value={description}
+          onChange={setDescription}
+          onPick={onPickSuggestion}
+          onBlur={saveDescription}
+          onOpenChange={setDescOpen}
+          entries={entries}
+          projects={projects}
+          tasks={tasks}
+          placeholder="What are you working on?"
+          ariaLabel="Time entry description"
+          tag={fieldTag}
+          compact
+        />
+
         <button
+          type="button"
           className="mini__icon-btn"
           onClick={onRefresh}
           disabled={syncing}
@@ -195,8 +315,18 @@ export function MiniTimer(): JSX.Element {
         >
           <RefreshIcon className={syncing ? 'spin' : undefined} />
         </button>
-
         <button
+          type="button"
+          className="mini__icon-btn"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          aria-label={expanded ? 'Hide project and task' : 'Edit project and task'}
+          title={expanded ? 'Hide project & task' : `Edit project & task — ${selection}`}
+        >
+          <ChevronIcon up={expanded} />
+        </button>
+        <button
+          type="button"
           className={`btn-round ${running ? 'btn-round--stop' : 'btn-round--start'} mini__btn`}
           onClick={onToggleTimer}
           disabled={timer.pending}
@@ -205,44 +335,57 @@ export function MiniTimer(): JSX.Element {
         >
           <TimerIcon running={!!running} />
         </button>
-      </div>
-
-      <form className="mini__fields" onSubmit={onSubmit}>
-        <DescriptionAutocomplete
-          value={description}
-          onChange={setDescription}
-          onPick={onPickSuggestion}
-          onBlur={saveDescription}
-          entries={entries}
-          projects={projects}
-          tasks={tasks}
-          placeholder="What are you working on?"
-          ariaLabel="Time entry description"
-          compact
-        />
-        <ProjectTaskPicker
-          projectId={projectId}
-          taskId={taskId}
-          onChange={onPickProjectTask}
-          projects={projects}
-          tasks={tasks}
-          compact
-          ariaLabel="Project and task for this timer"
-        />
       </form>
-     </div>
+
+      {expanded && (
+        <div className="mini__more">
+          <ProjectTaskPicker
+            projectId={projectId}
+            taskId={taskId}
+            onChange={onPickProjectTask}
+            onOpenChange={setPickOpen}
+            projects={projects}
+            tasks={tasks}
+            compact
+            ariaLabel="Project and task for this timer"
+          />
+        </div>
+      )}
     </div>
   )
 }
 
 function TimerIcon({ running }: { running: boolean }): JSX.Element {
   return running ? (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <rect x="6" y="6" width="12" height="12" rx="2" />
     </svg>
   ) : (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M8 5v14l11-7z" />
+    </svg>
+  )
+}
+
+/**
+ * Stroked rather than the usual filled caret: a caret only fills the middle
+ * third of its viewBox, so next to the refresh glyph — which fills its box —
+ * it reads as a much smaller control than it is.
+ */
+function ChevronIcon({ up }: { up: boolean }): JSX.Element {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={up ? 'M5 15l7-7 7 7' : 'M5 9l7 7 7-7'} />
     </svg>
   )
 }
@@ -250,8 +393,8 @@ function TimerIcon({ running }: { running: boolean }): JSX.Element {
 function RefreshIcon({ className }: { className?: string }): JSX.Element {
   return (
     <svg
-      width="14"
-      height="14"
+      width="18"
+      height="18"
       viewBox="0 0 24 24"
       fill="currentColor"
       aria-hidden="true"

@@ -58,9 +58,12 @@ export function createMainWindow(): BrowserWindow {
 }
 
 // Initial size of the compact mini timer; the renderer then reports its exact
-// content height and the window auto-fits via setContentSize().
-const MINI_WIDTH = 320
-const MINI_HEIGHT = 64
+// content height and the window auto-fits via setContentSize(). That height
+// covers the card plus any dropdown currently overhanging it — the card itself
+// only changes size when the user expands it. The width buys the single-line
+// layout: elapsed time, description and three controls, side by side.
+const MINI_WIDTH = 500
+const MINI_HEIGHT = 48
 // Highest level that stays above normal windows without fighting the OS UI.
 const AOT_LEVEL = 'screen-saver' as const
 
@@ -163,9 +166,16 @@ export class MiniTimerWindow {
       skipTaskbar: true,
       alwaysOnTop: true,
       title: 'Timer',
-      // Match the card surface so any transient gap during auto-resize or the
-      // rounded corners don't flash a mismatched colour.
-      backgroundColor: '#1c1e2a',
+      // Transparent so the window can be sized to "card + whatever dropdown is
+      // open" without that extra area showing as a filled rectangle: the card
+      // keeps its own size and the dropdown floats below it, the way a dropdown
+      // is supposed to behave. A fully transparent backgroundColor is required
+      // for this on every platform.
+      transparent: true,
+      backgroundColor: '#00000000',
+      // Ignored while transparent on Windows; on macOS an OS shadow around the
+      // whole (mostly empty) window would outline the dropdown's dead space.
+      hasShadow: false,
       webPreferences: {
         preload,
         sandbox: false,
@@ -202,10 +212,12 @@ export class MiniTimerWindow {
 
   /**
    * Size the window to exactly fit the renderer's measured content, so there is
-   * never empty space at the bottom. The renderer calls this whenever its
-   * content height changes (expand/collapse, font scaling, running state). The
-   * window keeps its top-left corner but is nudged back on-screen near edges;
-   * macOS animates a meaningful size change (e.g. expand/collapse).
+   * never empty space at the bottom and no more transparent, click-blocking
+   * area than an open dropdown actually needs. The renderer calls this whenever
+   * that height changes (a dropdown opening, expand/collapse, font scaling).
+   * The window keeps its top-left corner but is nudged back on-screen near
+   * edges. Nothing is animated: the renderer's own coalescing already makes
+   * these steps rare, and animating them is what reads as flicker.
    */
   setContentSize(width: number, height: number): void {
     const win = this.win
@@ -221,12 +233,7 @@ export class MiniTimerWindow {
       const wa = display.workArea
       const nx = Math.min(Math.max(x, wa.x), wa.x + wa.width - w)
       const ny = Math.min(Math.max(y, wa.y), wa.y + wa.height - h)
-      // Animate only for larger jumps (expand/collapse), not tiny reflows.
-      const animate = process.platform === 'darwin' && Math.abs(curH - h) > 24
-      win.setContentBounds(
-        { x: Math.round(nx), y: Math.round(ny), width: w, height: h },
-        animate
-      )
+      win.setContentBounds({ x: Math.round(nx), y: Math.round(ny), width: w, height: h })
       this.assertOnTop()
     }
     // First fit for a pending show → reveal the correctly-sized window.
