@@ -275,7 +275,7 @@ class AppController {
     handle(INVOKE.timerGetState, () => this.timer.getState())
     handle(INVOKE.timerStart, (input) => this.timer.start(input as StartTimerInput))
     handle(INVOKE.timerStop, () => this.timer.stop().then(() => null))
-    handle(INVOKE.timerSync, () => this.timer.sync().then(() => this.timer.getState()))
+    handle(INVOKE.timerSync, () => this.timer.syncNow().then(() => this.timer.getState()))
 
     handle(INVOKE.projectsList, () => {
       if (!this.client || !this.session) throw new Error('Not signed in.')

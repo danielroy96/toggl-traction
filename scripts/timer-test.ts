@@ -23,12 +23,15 @@ const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
 class FakeClient {
   starts = 0
   stops = 0
+  /** How many times the current-entry endpoint was hit (API budget matters). */
+  currentReads = 0
   order: string[] = []
   private seq = 1
   current: TimeEntry | null = null
   latency = 20
 
   async getCurrentEntry(): Promise<TimeEntry | null> {
+    this.currentReads++
     return this.current
   }
   async startTimer(input: StartTimerInput & { workspaceId: number }): Promise<TimeEntry> {
@@ -129,6 +132,57 @@ async function run(): Promise<void> {
     assert(tm.getState().pending === true, 'pending is true while start is in flight')
     await p
     assert(tm.getState().pending === false, 'pending clears after start resolves')
+    tm.detach()
+  }
+
+  // 5. A manual refresh picks up an entry started somewhere else (web/mobile).
+  {
+    const fake = new FakeClient()
+    const tm = new TimerManager()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    tm.attach(fake as any, 1)
+    await delay(5)
+    assert(tm.getState().running === null, 'nothing running to begin with')
+    // Simulate the Toggl web app starting a timer behind our back.
+    fake.current = {
+      id: 99,
+      workspace_id: 1,
+      description: 'Started on the web',
+      project_id: null,
+      start: new Date().toISOString(),
+      stop: null,
+      duration: -1
+    }
+    const readsBefore = fake.currentReads
+    await tm.syncNow()
+    assert(tm.getState().running?.id === 99, 'refresh picks up an externally started entry')
+    assert(tm.getState().lastSyncedAt !== null, 'refresh records lastSyncedAt')
+    assert(fake.currentReads - readsBefore === 1, 'refresh costs exactly one API read')
+
+    // ...and an entry stopped elsewhere disappears on the next refresh.
+    fake.current = null
+    await tm.syncNow()
+    assert(tm.getState().running === null, 'refresh clears an externally stopped entry')
+    tm.detach()
+  }
+
+  // 6. A refresh landing mid-start must not clobber the optimistic state.
+  {
+    const fake = new FakeClient()
+    fake.latency = 40
+    const tm = new TimerManager()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    tm.attach(fake as any, 1)
+    await delay(5)
+    const p = tm.start({ description: 'Local' })
+    await delay(10) // the start is in flight, so state.pending is true
+    await tm.syncNow() // the server still reports nothing running
+    assert(tm.getState().pending === true, 'still pending after a mid-start refresh')
+    await p
+    assert(
+      tm.getState().running?.description === 'Local',
+      'refresh did not clobber the in-flight start'
+    )
     tm.detach()
   }
 

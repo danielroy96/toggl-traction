@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useApp } from '../store/app.js'
 import { useElapsed } from '../lib/useElapsed.js'
-import { formatDuration } from '../lib/format.js'
+import { formatDuration, formatSyncedAt } from '../lib/format.js'
 import { ProjectTaskPicker } from './ProjectTaskPicker.js'
 import { DescriptionAutocomplete, type EntryDetails } from './DescriptionAutocomplete.js'
 import { EntryEditor } from './EntryEditor.js'
@@ -13,8 +13,18 @@ import { EntryEditor } from './EntryEditor.js'
  * serialises them as a second line of defence.
  */
 export function TimerBar(): JSX.Element {
-  const { timer, start, stop, projects, tasks, entries, setEntryProjectTask, editEntry } =
-    useApp()
+  const {
+    timer,
+    start,
+    stop,
+    projects,
+    tasks,
+    entries,
+    setEntryProjectTask,
+    editEntry,
+    syncing,
+    syncNow
+  } = useApp()
   const running = timer.running
   const elapsed = useElapsed(running?.start ?? null)
 
@@ -120,6 +130,21 @@ export function TimerBar(): JSX.Element {
         {formatDuration(running ? elapsed : 0)}
       </div>
 
+      {/* Toggl is the source of truth and it can be changed from anywhere (web,
+          mobile, another device). The main process reconciles on a slow timer to
+          stay inside the API rate limit, so this is the escape hatch for when
+          you want the app caught up right now. */}
+      <button
+        type="button"
+        className="icon-btn"
+        onClick={() => void syncNow()}
+        disabled={syncing}
+        aria-label={syncing ? 'Refreshing from Toggl' : 'Refresh from Toggl'}
+        title={`Refresh from Toggl — ${formatSyncedAt(timer.lastSyncedAt)}`}
+      >
+        <RefreshIcon className={syncing ? 'spin' : undefined} />
+      </button>
+
       {running && (
         <button
           type="button"
@@ -168,6 +193,20 @@ function PlayIcon(): JSX.Element {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
       <path d="M8 5v14l11-7z" />
+    </svg>
+  )
+}
+function RefreshIcon({ className }: { className?: string }): JSX.Element {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      fill="currentColor"
+      className={className}
+    >
+      <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
     </svg>
   )
 }

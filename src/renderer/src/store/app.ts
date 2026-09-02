@@ -26,12 +26,20 @@ interface AppStore {
   calendarStatus: GoogleCalendarStatus | null
   /** Non-fatal error shown as a toast; separate from timer.error. */
   toast: string | null
+  /** True while a manual "refresh" is in flight, so the button can show it. */
+  syncing: boolean
 
   init: () => Promise<void>
   signIn: (token: string) => Promise<void>
   signOut: () => Promise<void>
   start: (input: StartTimerInput) => Promise<void>
   stop: () => Promise<void>
+  /**
+   * Pull the current state from Toggl on demand. The main process reconciles on
+   * a slow timer anyway, but a timer started elsewhere (web, mobile) should not
+   * have to wait for that — this makes it immediate without polling harder.
+   */
+  syncNow: () => Promise<void>
   refreshEntries: () => Promise<void>
   refreshProjects: () => Promise<void>
   refreshTasks: () => Promise<void>
@@ -71,6 +79,7 @@ export const useApp = create<AppStore>((set, get) => ({
   suggestions: [],
   calendarStatus: null,
   toast: null,
+  syncing: false,
 
   init: async () => {
     const api = window.toggl
@@ -161,6 +170,21 @@ export const useApp = create<AppStore>((set, get) => ({
       void get().refreshEntries()
     } catch (err) {
       set({ toast: err instanceof Error ? err.message : 'Could not stop the timer.' })
+    }
+  },
+
+  syncNow: async () => {
+    if (get().syncing || !window.toggl) return
+    set({ syncing: true })
+    try {
+      const timer = await window.toggl.timer.sync()
+      // The running entry and the list can both be stale, so refresh together.
+      set({ timer })
+      await get().refreshEntries()
+    } catch (err) {
+      set({ toast: err instanceof Error ? err.message : 'Could not sync with Toggl.' })
+    } finally {
+      set({ syncing: false })
     }
   },
 

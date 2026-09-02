@@ -433,3 +433,15 @@
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
+
+/* Busy indicator for in-flight actions. Lives here rather than app.css because
+   the mini timer window loads only global + components + mini styles.
+   prefers-reduced-motion is neutralised globally (see global.css). */
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

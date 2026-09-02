@@ -65,6 +65,11 @@ WCAG contrast, timer tests, build) must pass before merging.
   picker as the main window, so "repeat what I did before" works identically in
   both. No edit mode to enter first. Stays above other apps and survives
   display changes / fullscreen apps (see _Reliability_).
+- **Refresh on demand** — Toggl can be driven from anywhere (web, mobile,
+  another device), so both the timer bar and the mini timer carry a refresh
+  button that reconciles immediately and reports how fresh the state is. The
+  app also reconciles on its own every 30s; the button exists because that
+  interval is kept deliberately slow to stay well inside the API rate limit.
 - **Suggestions pipeline** for automatic tracking, with scaffolded sources for
   IntelliJ/IDE window detection (branch/ticket refs), Jira and Google Calendar.
 - **System tray** with quick start/stop and show/quit.

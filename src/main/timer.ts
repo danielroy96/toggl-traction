@@ -25,6 +25,12 @@ export class TimerManager extends EventEmitter {
   private client: TogglClient | null = null
   private activeWorkspaceId: number | null = null
   private pollHandle: ReturnType<typeof setInterval> | null = null
+  /**
+   * How many sync requests are in flight. A count rather than a flag because a
+   * manual refresh can overlap a write's own reconcile, and the earlier one
+   * finishing must not tell the poll that the coast is clear.
+   */
+  private syncsInFlight = 0
 
   /** Serialises mutating operations so start/stop can never overlap. */
   private mutation: Promise<unknown> = Promise.resolve()
@@ -64,7 +70,7 @@ export class TimerManager extends EventEmitter {
     // devices (web, mobile) are reflected here. Skipped while a mutation is in
     // flight to avoid clobbering optimistic state.
     this.pollHandle = setInterval(() => {
-      if (!this.state.pending) void this.sync()
+      if (!this.state.pending && this.syncsInFlight === 0) void this.sync()
     }, 30_000)
   }
 
@@ -76,6 +82,7 @@ export class TimerManager extends EventEmitter {
   /** Pull the authoritative current entry from Toggl. */
   async sync(): Promise<void> {
     if (!this.client) return
+    this.syncsInFlight++
     try {
       const current = await this.client.getCurrentEntry()
       // Don't overwrite an in-flight optimistic change.
@@ -87,7 +94,20 @@ export class TimerManager extends EventEmitter {
       })
     } catch (err) {
       this.setState({ error: describe(err) })
+    } finally {
+      this.syncsInFlight--
     }
+  }
+
+  /**
+   * A user-initiated reconcile: the refresh button, or a write whose result we
+   * need back. Same request as `sync`, but it also re-arms the poll clock so a
+   * manual refresh is not chased by a scheduled one moments later — the Toggl
+   * rate limit is tight, so every avoided request counts.
+   */
+  async syncNow(): Promise<void> {
+    await this.sync()
+    if (this.client) this.startPolling()
   }
 
   /** Enqueue a mutation so only one runs at a time. */

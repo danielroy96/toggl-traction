@@ -8,7 +8,7 @@ import type {
 } from '../../../shared/types.js'
 import { useElapsed } from '../lib/useElapsed.js'
 import { useAppearance } from '../lib/useAppearance.js'
-import { formatDuration } from '../lib/format.js'
+import { formatDuration, formatSyncedAt } from '../lib/format.js'
 import { ProjectTaskPicker } from '../components/ProjectTaskPicker.js'
 import {
   DescriptionAutocomplete,
@@ -46,6 +46,7 @@ export function MiniTimer(): JSX.Element {
   const [projectId, setProjectId] = useState<number | null>(null)
   const [taskId, setTaskId] = useState<number | null>(null)
   const [description, setDescription] = useState('')
+  const [syncing, setSyncing] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
   const elapsed = useElapsed(timer.running?.start ?? null)
 
@@ -105,6 +106,24 @@ export function MiniTimer(): JSX.Element {
       .then(setEntries)
       .catch(() => {})
   }, [running?.id])
+
+  /**
+   * Pull the current state from Toggl on demand. A timer started elsewhere (the
+   * web app, another device) only reaches us on the main process's slow poll —
+   * deliberately slow, because the API rate limit is tight — so this is how you
+   * catch the mini timer up immediately.
+   */
+  const onRefresh = (): void => {
+    if (syncing || !window.toggl) return
+    setSyncing(true)
+    void window.toggl.timer
+      .sync()
+      .then(setTimer)
+      .catch(() => {
+        /* the main process records the failure in timer.error */
+      })
+      .finally(() => setSyncing(false))
+  }
 
   const onToggleTimer = (): void => {
     if (timer.pending || !window.toggl) return
@@ -168,6 +187,16 @@ export function MiniTimer(): JSX.Element {
         </span>
         <span className="mini__status">{running ? 'Tracking' : 'Stopped'}</span>
         <button
+          className="mini__icon-btn"
+          onClick={onRefresh}
+          disabled={syncing}
+          aria-label={syncing ? 'Refreshing from Toggl' : 'Refresh from Toggl'}
+          title={`Refresh from Toggl — ${formatSyncedAt(timer.lastSyncedAt)}`}
+        >
+          <RefreshIcon className={syncing ? 'spin' : undefined} />
+        </button>
+
+        <button
           className={`btn-round ${running ? 'btn-round--stop' : 'btn-round--start'} mini__btn`}
           onClick={onToggleTimer}
           disabled={timer.pending}
@@ -214,6 +243,21 @@ function TimerIcon({ running }: { running: boolean }): JSX.Element {
   ) : (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M8 5v14l11-7z" />
+    </svg>
+  )
+}
+
+function RefreshIcon({ className }: { className?: string }): JSX.Element {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
     </svg>
   )
 }
