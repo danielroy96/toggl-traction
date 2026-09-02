@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
 import type {
   AppSettings,
+  TimeEntry,
   TimerState,
   TogglProject,
   TogglTask
@@ -10,9 +10,10 @@ import { useElapsed } from '../lib/useElapsed.js'
 import { useAppearance } from '../lib/useAppearance.js'
 import { formatDuration, formatSyncedAt } from '../lib/format.js'
 import { ProjectTaskPicker } from '../components/ProjectTaskPicker.js'
-
-/** Keep in sync with MINI_WIDTH in src/main/windows.ts. */
-const MINI_WIDTH = 352
+import {
+  DescriptionAutocomplete,
+  type EntryDetails
+} from '../components/DescriptionAutocomplete.js'
 
 const emptyTimer: TimerState = {
   running: null,
@@ -24,11 +25,14 @@ const emptyTimer: TimerState = {
 /**
  * The always-on-top mini timer.
  *
- * Two states, to stay small yet capable:
- *  - Collapsed: a tight glance view — elapsed time, a one-line description ·
- *    project/task label, and a start/stop button.
- *  - Expanded: click to grow the window (main process animates the resize) and
- *    reveal an editable description and a project/task picker.
+ * One always-editable state: elapsed time and a start/stop button on the drag
+ * row, then the same description autocomplete and project/task picker the main
+ * window's timer bar uses — so "repeat what I did before" behaves identically
+ * in both, and there is no edit mode to enter first.
+ *
+ * Both dropdowns render inline (in normal flow) rather than as overlays: the
+ * window is sized to its content, so an overlay would be clipped at the window
+ * edge. That is why the auto-fit below stays; the height is otherwise stable.
  *
  * It is self-contained (talks to window.toggl directly) so it never depends on
  * the main window being open.
@@ -38,10 +42,10 @@ export function MiniTimer(): JSX.Element {
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [projects, setProjects] = useState<TogglProject[]>([])
   const [tasks, setTasks] = useState<TogglTask[]>([])
+  const [entries, setEntries] = useState<TimeEntry[]>([])
   const [projectId, setProjectId] = useState<number | null>(null)
   const [taskId, setTaskId] = useState<number | null>(null)
   const [description, setDescription] = useState('')
-  const [expanded, setExpanded] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
   const elapsed = useElapsed(timer.running?.start ?? null)
@@ -54,9 +58,9 @@ export function MiniTimer(): JSX.Element {
     const el = contentRef.current
     if (!el || !window.toggl) return
     const sync = (): void => {
-      // Fixed width in both states — wide enough for a ticket ref plus some
-      // description and the project/task line, with no jump on expand/collapse.
-      const width = MINI_WIDTH
+      // Fixed width — wide enough for a ticket ref plus some description and
+      // the project/task line.
+      const width = 320
       // +2 accounts for the .mini 1px top/bottom border (box-sizing: border-box).
       const height = Math.ceil(el.getBoundingClientRect().height) + 2
       void window.toggl.mini.setContentSize(width, height)
@@ -65,7 +69,7 @@ export function MiniTimer(): JSX.Element {
     const ro = new ResizeObserver(sync)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [expanded, settings?.fontScale])
+  }, [settings?.fontScale])
 
   useEffect(() => {
     const api = window.toggl
@@ -93,9 +97,15 @@ export function MiniTimer(): JSX.Element {
     }
   }, [running?.id])
 
-  // Toggling expanded changes the rendered content; the layout effect above
-  // re-measures and resizes the window to fit.
-  const toggleExpanded = (): void => setExpanded((v) => !v)
+  // Reload the autocomplete's source whenever the running entry changes — a
+  // start/stop adds to history and there is no entries-changed broadcast.
+  useEffect(() => {
+    if (!window.toggl) return
+    void window.toggl.entries
+      .recent()
+      .then(setEntries)
+      .catch(() => {})
+  }, [running?.id])
 
   /**
    * Pull the current state from Toggl on demand. A timer started elsewhere (the
@@ -117,70 +127,65 @@ export function MiniTimer(): JSX.Element {
 
   const onToggleTimer = (): void => {
     if (timer.pending || !window.toggl) return
-    if (running) void window.toggl.timer.stop()
-    else void window.toggl.timer.start({ description: description.trim(), projectId, taskId })
+    if (running) {
+      void window.toggl.timer.stop()
+      // Clear the fields on stop, matching the main window: this entry is
+      // finished and the next one usually starts from a clean slate.
+      setDescription('')
+      setProjectId(null)
+      setTaskId(null)
+    } else {
+      void window.toggl.timer.start({ description: description.trim(), projectId, taskId })
+    }
   }
 
-  const onPick = (pid: number | null, tid: number | null): void => {
+  /** Patch the running entry, then re-sync so the change is reflected live. */
+  const patchRunning = (patch: Partial<TimeEntry>): void => {
+    if (!running || !window.toggl) return
+    void window.toggl.entries
+      .update(running.id, patch)
+      .then(() => window.toggl.timer.sync())
+      .catch(() => {})
+  }
+
+  const onPickProjectTask = (pid: number | null, tid: number | null): void => {
     setProjectId(pid)
     setTaskId(tid)
-    if (running && window.toggl) {
-      void window.toggl.entries
-        .update(running.id, { project_id: pid, task_id: tid })
-        .then(() => window.toggl.timer.sync())
-        .catch(() => {})
-    }
+    patchRunning({ project_id: pid, task_id: tid })
   }
 
   const saveDescription = (): void => {
-    if (running && window.toggl && description.trim() !== (running.description ?? '')) {
-      void window.toggl.entries
-        .update(running.id, { description: description.trim() })
-        .then(() => window.toggl.timer.sync())
-        .catch(() => {})
+    if (running && description.trim() !== (running.description ?? '')) {
+      patchRunning({ description: description.trim() })
     }
   }
 
-  const project = projects.find((p) => p.id === projectId)
-  const task = tasks.find((t) => t.id === taskId)
-  const meta = project
-    ? `${project.name}${task ? ` · ${task.name}` : ''}`
-    : 'No project'
+  // Copy a recent entry's details (description + project/task) into the fields.
+  const onPickSuggestion = (d: EntryDetails): void => {
+    const pid = d.project_id ?? null
+    const tid = d.task_id ?? null
+    setDescription(d.description)
+    setProjectId(pid)
+    setTaskId(tid)
+    patchRunning({ description: d.description, project_id: pid, task_id: tid })
+  }
+
+  // Enter in the description field saves it while running, else starts.
+  const onSubmit = (e: React.FormEvent): void => {
+    e.preventDefault()
+    if (running) saveDescription()
+    else onToggleTimer()
+  }
 
   return (
-    <div className={`mini ${running ? 'mini--running' : ''} ${expanded ? 'mini--expanded' : ''}`}>
+    <div className={`mini ${running ? 'mini--running' : ''}`}>
      <div className="mini__content" ref={contentRef}>
+      {/* Draggable glance row — dragging it moves the OS window. */}
       <div className="mini__header">
-        {/* Draggable glance area (the whole window moves the OS window). */}
-        <div className="mini__glance">
-          <span
-            className="mini__time mono"
-            role="timer"
-            aria-live="off"
-          >
-            {formatDuration(running ? elapsed : 0)}
-          </span>
-          {/* Redundant with the editable fields when expanded, so collapsed-only. */}
-          {!expanded && (
-            <span className="mini__summary">
-              <TruncatedText
-                className="mini__desc"
-                title={running ? running.description || 'No description' : 'Stopped'}
-              >
-                {running ? running.description || 'No description' : 'Stopped'}
-              </TruncatedText>
-              <TruncatedText className="mini__meta" title={meta}>
-                <span
-                  className="project-dot mini__dot"
-                  style={{ background: project?.color ?? 'var(--border-strong)' }}
-                  aria-hidden="true"
-                />
-                {meta}
-              </TruncatedText>
-            </span>
-          )}
-        </div>
-
+        <span className="mini__time mono" role="timer" aria-live="off">
+          {formatDuration(running ? elapsed : 0)}
+        </span>
+        <span className="mini__status">{running ? 'Tracking' : 'Stopped'}</span>
         <button
           className="mini__icon-btn"
           onClick={onRefresh}
@@ -192,97 +197,41 @@ export function MiniTimer(): JSX.Element {
         </button>
 
         <button
-          className="mini__icon-btn"
-          onClick={toggleExpanded}
-          aria-expanded={expanded}
-          aria-label={expanded ? 'Collapse timer' : 'Edit time entry'}
+          className={`btn-round ${running ? 'btn-round--stop' : 'btn-round--start'} mini__btn`}
+          onClick={onToggleTimer}
+          disabled={timer.pending}
+          aria-label={running ? 'Stop timer' : 'Start timer'}
+          title={running ? 'Stop timer' : 'Start timer'}
         >
-          <PencilIcon />
+          <TimerIcon running={!!running} />
         </button>
-
-        {/* Collapsed: quick round toggle in the header. Expanded: a full-width
-            primary button lives at the bottom instead (see below). */}
-        {!expanded && (
-          <button
-            className={`btn-round ${running ? 'btn-round--stop' : 'btn-round--start'} mini__btn`}
-            onClick={onToggleTimer}
-            disabled={timer.pending}
-            aria-label={running ? 'Stop timer' : 'Start timer'}
-          >
-            <TimerIcon running={!!running} />
-          </button>
-        )}
       </div>
 
-      {expanded && (
-        <div className="mini__editor">
-          <input
-            className="input mini__desc-input"
-            type="text"
-            placeholder="What are you working on?"
-            aria-label="Time entry description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            onBlur={saveDescription}
-          />
-          <ProjectTaskPicker
-            projectId={projectId}
-            taskId={taskId}
-            onChange={onPick}
-            projects={projects}
-            tasks={tasks}
-            compact
-            ariaLabel="Project and task for this timer"
-          />
-          <button
-            className={`btn ${running ? 'btn--danger' : 'btn--success'} mini__primary`}
-            onClick={onToggleTimer}
-            disabled={timer.pending}
-          >
-            <TimerIcon running={!!running} />
-            {running ? 'Stop timer' : 'Start timer'}
-          </button>
-        </div>
-      )}
+      <form className="mini__fields" onSubmit={onSubmit}>
+        <DescriptionAutocomplete
+          value={description}
+          onChange={setDescription}
+          onPick={onPickSuggestion}
+          onBlur={saveDescription}
+          entries={entries}
+          projects={projects}
+          tasks={tasks}
+          placeholder="What are you working on?"
+          ariaLabel="Time entry description"
+          compact
+        />
+        <ProjectTaskPicker
+          projectId={projectId}
+          taskId={taskId}
+          onChange={onPickProjectTask}
+          projects={projects}
+          tasks={tasks}
+          compact
+          ariaLabel="Project and task for this timer"
+        />
+      </form>
      </div>
     </div>
-  )
-}
-
-/**
- * An inline text element that shows a native tooltip with its full content only
- * when the text is actually clipped by the ellipsis. We compare scroll vs client
- * width (and re-check on resize) so the tooltip never appears for text that fits.
- */
-function TruncatedText({
-  className,
-  title,
-  children
-}: {
-  className?: string
-  title: string
-  children: ReactNode
-}): JSX.Element {
-  const ref = useRef<HTMLSpanElement>(null)
-  const [tip, setTip] = useState<string | undefined>(undefined)
-
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const check = (): void => {
-      const overflowing = el.scrollWidth > el.clientWidth
-      setTip(overflowing ? title : undefined)
-    }
-    check()
-    const ro = new ResizeObserver(check)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [title])
-
-  return (
-    <span ref={ref} className={className} title={tip}>
-      {children}
-    </span>
   )
 }
 
@@ -309,20 +258,6 @@ function RefreshIcon({ className }: { className?: string }): JSX.Element {
       className={className}
     >
       <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
-    </svg>
-  )
-}
-
-function PencilIcon(): JSX.Element {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
     </svg>
   )
 }

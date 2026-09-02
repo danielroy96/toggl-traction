@@ -299,6 +299,105 @@
   color: var(--text-muted);
 }
 
+/* Description autocomplete over recent entries (used in the full timer bar and
+   the mini timer). Base is an overlay dropdown; the mini timer opts into the
+   inline variant below. */
+.autocomplete {
+  position: relative;
+  width: 100%;
+}
+.autocomplete > .input {
+  width: 100%;
+}
+.autocomplete__list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+  max-height: 20rem;
+  overflow-y: auto;
+}
+/* Inline (mini): render in flow so the auto-fitting window grows to reveal the
+   list instead of clipping an overlay at the window edge. */
+.autocomplete--inline .autocomplete__list {
+  position: static;
+  margin-top: var(--space-1);
+  box-shadow: none;
+  max-height: 10rem;
+}
+.autocomplete__opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--target-min);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.autocomplete__opt--active {
+  background: var(--surface-hover);
+}
+.autocomplete__desc {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.autocomplete__opt .badge {
+  flex: none;
+  max-width: 14rem;
+  min-width: 0;
+}
+/* The badge is a flex row (dot + label), so the ellipsis must live on the
+   label — `text-overflow` has no effect on the flex container itself. */
+.badge__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Compact variants for the mini timer: a smaller field and tighter, stacked
+   options so a suggestion still fits the narrow window. */
+.autocomplete--compact > .input {
+  min-height: 2.25rem;
+  font-size: 0.9rem;
+  padding: var(--space-1) var(--space-2);
+}
+.autocomplete--compact .autocomplete__opt {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-2);
+  font-size: 0.85rem;
+}
+.autocomplete--compact .autocomplete__desc {
+  max-width: 100%;
+}
+.autocomplete--compact .autocomplete__opt .badge {
+  max-width: 100%;
+  padding: 0;
+  background: none;
+  border: 0;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.autocomplete--compact .autocomplete__opt .project-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+}
+
 /* Compact trigger for the mini timer (aligns flush with the description input,
    no leading dot). */
 .ptpick--compact .ptpick__trigger {

@@ -47,8 +47,8 @@
 /* Natural-height content wrapper the renderer measures to auto-size the window,
    so there is never empty space at the bottom. `flex: none` is essential: as a
    flex child of `.mini` (height:100vh, overflow:hidden) it would otherwise be
-   shrunk to the current — still small — window height at the moment we measure
-   it on expand, reporting too short a height and clipping the content. */
+   shrunk to the current window height at the moment we measure it while a
+   dropdown opens, reporting too short a height and clipping the content. */
 .mini__content {
   display: flex;
   flex-direction: column;
@@ -62,20 +62,9 @@
   padding: var(--space-1) var(--space-2);
 }
 
-/* Time + description/task label. This area is draggable (not a control). */
-.mini__glance {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--text);
-  text-align: left;
-}
-
-/* Compact header controls (refresh, expand/collapse). Smaller than the app's
-   44px .icon-btn target by necessity — the window is only 320px wide — but they
-   keep a full 2rem hit area and a visible focus ring from global.css. */
+/* Compact header control (refresh). Smaller than the app's 44px .icon-btn
+   target by necessity — the window is only 320px wide — but it keeps a full
+   2rem hit area and a visible focus ring from global.css. */
 .mini__icon-btn {
   flex: none;
   display: inline-flex;
@@ -98,47 +87,24 @@
 }
 
 .mini__time {
-  font-size: 1.15rem;
+  font-size: 1.4rem;
   font-weight: 700;
   line-height: 1;
   flex: none;
-}
-/* Expanded: the time anchors the header (title-bar style) since the summary and
-   the round button move out; a larger size balances the row. */
-.mini--expanded .mini__time {
-  font-size: 1.5rem;
+  color: var(--text);
 }
 
-.mini__summary {
+/* Running/stopped label, filling the drag area between time and button. */
+.mini__status {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  line-height: 1.2;
-}
-.mini__desc {
-  font-size: 0.8rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* Block (not flex) so `text-overflow: ellipsis` actually applies to the
-   project/task text — on a flex container it has no effect and the name would
-   be clipped mid-word instead. The dot flows inline alongside the text. */
-.mini__meta {
-  display: block;
   font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.mini__dot {
-  width: 0.55rem;
-  height: 0.55rem;
-  display: inline-block;
-  vertical-align: middle;
-  margin-right: 0.3rem;
 }
 
 .mini__btn {
@@ -148,24 +114,11 @@
   height: 2rem;
 }
 
-/* Expanded editor area. */
-.mini__editor {
+/* Always-visible description + project/task fields. */
+.mini__fields {
   -webkit-app-region: no-drag;
   padding: 0 var(--space-2) var(--space-2);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-}
-.mini__desc-input {
-  min-height: 2.25rem;
-  font-size: 0.9rem;
-  /* Match the compact select's padding so the input text and the select text
-     line up exactly. */
-  padding: var(--space-1) var(--space-2);
-}
-
-/* Full-width primary start/stop button in the expanded editor. */
-.mini__primary {
-  width: 100%;
-  margin-top: var(--space-1);
 }
