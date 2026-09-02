@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useId, useMemo, useRef, useState } from 'react'
 import type { TimeEntry, TogglProject, TogglTask } from '../../../shared/types.js'
 
 export interface EntryDetails {
@@ -18,6 +18,11 @@ interface Props {
   tasks: TogglTask[]
   placeholder?: string
   ariaLabel?: string
+  /** Compact styling for the mini timer (also renders the list inline). */
+  compact?: boolean
+  /** Render the list in normal flow instead of an overlay (for the mini window,
+   *  whose overlay would be clipped by the small always-on-top window). */
+  inline?: boolean
 }
 
 /**
@@ -39,11 +44,15 @@ export function DescriptionAutocomplete({
   projects,
   tasks,
   placeholder,
-  ariaLabel
+  ariaLabel,
+  compact,
+  inline
 }: Props): JSX.Element {
+  const uid = useId()
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const listInline = compact || inline
 
   const suggestions = useMemo(() => {
     const seen = new Set<string>()
@@ -103,15 +112,19 @@ export function DescriptionAutocomplete({
   }
 
   return (
-    <div className="autocomplete">
+    <div
+      className={`autocomplete ${compact ? 'autocomplete--compact' : ''} ${
+        listInline ? 'autocomplete--inline' : ''
+      }`}
+    >
       <input
         className="input"
         type="text"
         role="combobox"
         aria-expanded={canOpen}
-        aria-controls="ac-listbox"
+        aria-controls={`${uid}-listbox`}
         aria-autocomplete="list"
-        aria-activedescendant={active >= 0 ? `ac-opt-${active}` : undefined}
+        aria-activedescendant={active >= 0 ? `${uid}-opt-${active}` : undefined}
         placeholder={placeholder}
         aria-label={ariaLabel}
         value={value}
@@ -132,13 +145,13 @@ export function DescriptionAutocomplete({
         }}
       />
       {canOpen && (
-        <ul className="autocomplete__list" id="ac-listbox" role="listbox">
+        <ul className="autocomplete__list" id={`${uid}-listbox`} role="listbox">
           {suggestions.map((d, i) => {
             const { project, task } = label(d)
             return (
               <li
                 key={`${d.description}|${d.project_id}|${d.task_id}`}
-                id={`ac-opt-${i}`}
+                id={`${uid}-opt-${i}`}
                 role="option"
                 aria-selected={i === active}
                 className={`autocomplete__opt ${i === active ? 'autocomplete__opt--active' : ''}`}

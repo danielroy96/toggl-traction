@@ -60,10 +60,11 @@ WCAG contrast, timer tests, build) must pass before merging.
 - **Rich editing** — every time entry, running or finished, is editable:
   description, project/task, and start/stop times, plus delete. Click an entry
   to open the editor; the running entry's description/project/task update live.
-- **Always-on-top mini timer** — a compact glance view (time, description,
-  project/task) that **expands with an animation on click** to reveal an
-  editable description and project/task picker. Stays above other apps and
-  survives display changes / fullscreen apps (see _Reliability_).
+- **Always-on-top mini timer** — a compact, **always-editable** panel: elapsed
+  time and start/stop, plus the same description autocomplete and project/task
+  picker as the main window, so "repeat what I did before" works identically in
+  both. No edit mode to enter first. Stays above other apps and survives
+  display changes / fullscreen apps (see _Reliability_).
 - **Suggestions pipeline** for automatic tracking, with scaffolded sources for
   IntelliJ/IDE window detection (branch/ticket refs), Jira and Google Calendar.
 - **System tray** with quick start/stop and show/quit.
