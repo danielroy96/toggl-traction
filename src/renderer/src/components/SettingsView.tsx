@@ -1,3 +1,4 @@
+import type { JSX } from 'react'
 import { useApp } from '../store/app.js'
 import type { AppSettings, GoogleCalendarStatus } from '../../../shared/types.js'
 

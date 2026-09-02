@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import type { JSX } from 'react'
 import { useApp } from '../store/app.js'
 import type { TimeEntry } from '../../../shared/types.js'
 import {
@@ -12,6 +13,11 @@ import { EntryEditor } from './EntryEditor.js'
  * A grouped list of recent, completed time entries. Each row can be edited
  * (click the description), resumed (starts a new timer with the same
  * description/project/task) or deleted.
+ *
+ * One entry is one line — description, booking, times, duration and actions —
+ * so a day's work is scannable without scrolling. The colour belongs to the
+ * project/task the entry is booked against, not to the entry, so the dot sits
+ * inside that badge rather than out at the start of the row.
  */
 export function EntryList(): JSX.Element {
   const { entries, projects, tasks, start, deleteEntry } = useApp()
@@ -48,6 +54,8 @@ export function EntryList(): JSX.Element {
         const total = list.reduce((s, e) => s + Math.max(0, e.duration), 0)
         return (
           <section key={day} aria-label={formatDayHeading(list[0]!.start)}>
+            {/* Sticky so you always know which day you are looking at, however
+                far down a long list you have scrolled. */}
             <header className="entry-list__day">
               <h3>{formatDayHeading(list[0]!.start)}</h3>
               <span className="mono entry-list__day-total">
@@ -60,11 +68,6 @@ export function EntryList(): JSX.Element {
                 const task = tasks.find((t) => t.id === e.task_id)
                 return (
                   <li key={e.id} className="entry-row">
-                    <span
-                      className="project-dot"
-                      style={{ background: project?.color ?? 'var(--border-strong)' }}
-                      aria-hidden="true"
-                    />
                     <button
                       className="entry-row__desc entry-row__edit"
                       onClick={() => setEditing(e)}
@@ -73,19 +76,28 @@ export function EntryList(): JSX.Element {
                     >
                       {e.description || <em className="muted">(no description)</em>}
                     </button>
-                    <span className="entry-row__meta">
-                      {project && (
-                        <span className="badge">
-                          {project.name}
-                          {task && <span className="badge__task"> · {task.name}</span>}
-                        </span>
-                      )}
-                      <span className="entry-row__time muted mono">
-                        {formatClock(e.start)}–{e.stop ? formatClock(e.stop) : ''}
+                    {project && (
+                      <span
+                        className="badge entry-row__badge"
+                        title={task ? `${project.name} · ${task.name}` : project.name}
+                      >
+                        <span
+                          className="project-dot"
+                          style={{ background: project.color }}
+                          aria-hidden="true"
+                        />
+                        <span className="badge__label">{task?.name ?? project.name}</span>
+                        {/* The row shows the task; the project reaches a screen
+                            reader here and everyone else through the dot's
+                            colour and the tooltip. */}
+                        {task && <span className="sr-only"> in {project.name}</span>}
                       </span>
-                      <span className="entry-row__dur mono">
-                        {formatDurationCompact(Math.max(0, e.duration))}
-                      </span>
+                    )}
+                    <span className="entry-row__time muted mono">
+                      {formatClock(e.start)}–{e.stop ? formatClock(e.stop) : ''}
+                    </span>
+                    <span className="entry-row__dur mono">
+                      {formatDurationCompact(Math.max(0, e.duration))}
                     </span>
                     <span className="entry-row__actions">
                       <button
@@ -128,14 +140,14 @@ export function EntryList(): JSX.Element {
 
 function ResumeIcon(): JSX.Element {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M8 5v14l11-7z" />
     </svg>
   )
 }
 function TrashIcon(): JSX.Element {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M6 7h12l-1 13H7L6 7zm3-3h6l1 2H8l1-2z" />
     </svg>
   )

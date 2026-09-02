@@ -1,6 +1,7 @@
 import { BrowserWindow, Menu, screen, shell, app } from 'electron'
 import { join } from 'node:path'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { CHANNELS } from '../shared/types.js'
 
 const isDev = !!process.env['ELECTRON_RENDERER_URL']
 // electron-vite emits the preload as an ESM `.mjs` (the project is type:module).
@@ -28,17 +29,36 @@ function loadEntry(win: BrowserWindow, entry: 'index' | 'mini'): void {
   }
 }
 
+/**
+ * Chrome for the main window.
+ *
+ * The OS title bar carried nothing the app doesn't already say — the app name
+ * and the tabs live in the header — so it is gone and the header itself is the
+ * drag region (see `.app__titlebar` in app.css).
+ *
+ * Windows/Linux therefore need the minimize/maximize/close controls drawn by
+ * the renderer; macOS keeps its traffic lights floating over the content with
+ * `titleBarStyle: 'hidden'`, which is what users there expect, so the renderer
+ * only reserves room for them.
+ */
+function frameOptions(): Electron.BrowserWindowConstructorOptions {
+  return process.platform === 'darwin' ? { titleBarStyle: 'hidden' } : { frame: false }
+}
+
 export function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 960,
     height: 720,
     minWidth: 480,
-    minHeight: 480,
+    // Lower than it was: the compact layout stays usable in a short window, so
+    // the app can be parked as a strip showing the timer and a few entries.
+    minHeight: 360,
     show: false,
     title: 'Toggl Traction',
     icon: appIcon(),
     backgroundColor: '#12131a',
     autoHideMenuBar: true,
+    ...frameOptions(),
     webPreferences: {
       preload,
       sandbox: false,
@@ -52,6 +72,18 @@ export function createMainWindow(): BrowserWindow {
     shell.openExternal(url)
     return { action: 'deny' }
   })
+
+  // The custom title bar draws either "maximize" or "restore", so tell it which
+  // state the window is in whenever that changes.
+  const sendState = (): void => {
+    if (!win.isDestroyed()) {
+      win.webContents.send(CHANNELS.windowStateChanged, { maximized: win.isMaximized() })
+    }
+  }
+  win.on('maximize', sendState)
+  win.on('unmaximize', sendState)
+  win.on('enter-full-screen', sendState)
+  win.on('leave-full-screen', sendState)
 
   loadEntry(win, 'index')
   return win

@@ -12,7 +12,8 @@ import {
   type TogglProject,
   type TogglTask,
   type TrackingSuggestion,
-  type StartTimerInput
+  type StartTimerInput,
+  type WindowState
 } from '../shared/types.js'
 
 /** Unwrap an IpcResult, throwing a real Error on the renderer side. */
@@ -76,6 +77,16 @@ const api = {
       unwrap(ipcRenderer.invoke(INVOKE.calendarDisconnect)),
     onChange: (cb: (s: GoogleCalendarStatus) => void) =>
       on<GoogleCalendarStatus>(CHANNELS.calendarStatusChanged, cb)
+  },
+  /** Controls for the frameless main window's custom title bar. */
+  window: {
+    minimize: (): Promise<null> => unwrap(ipcRenderer.invoke(INVOKE.windowMinimize)),
+    toggleMaximize: (): Promise<null> =>
+      unwrap(ipcRenderer.invoke(INVOKE.windowToggleMaximize)),
+    close: (): Promise<null> => unwrap(ipcRenderer.invoke(INVOKE.windowClose)),
+    getState: (): Promise<WindowState> => unwrap(ipcRenderer.invoke(INVOKE.windowGetState)),
+    onChange: (cb: (s: WindowState) => void) =>
+      on<WindowState>(CHANNELS.windowStateChanged, cb)
   },
   mini: {
     show: (): Promise<null> => unwrap(ipcRenderer.invoke(INVOKE.miniShow)),

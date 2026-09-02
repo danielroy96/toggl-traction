@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import type { JSX } from 'react'
 
 interface Props {
   title: string
@@ -10,6 +11,10 @@ interface Props {
  * Accessible modal dialog: role="dialog" + aria-modal, focus is moved in on
  * open and restored on close, Tab is trapped inside, and Escape / backdrop
  * click close it. Kept dependency-free.
+ *
+ * Escape is claimed innermost-first: a dropdown open inside the dialog gets the
+ * key press, and only once nothing inside wants it does the dialog itself
+ * close. See the listener registration below for how that is arranged.
  */
 export function Modal({ title, onClose, children }: Props): JSX.Element {
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -42,9 +47,19 @@ export function Modal({ title, onClose, children }: Props): JSX.Element {
         }
       }
     }
-    document.addEventListener('keydown', onKeyDown, true)
+    /*
+     * Bubble phase, deliberately — this used to capture, which meant the dialog
+     * saw Escape before anything inside it did and one key press closed both an
+     * open dropdown and the dialog behind it. Listening on the way back up lets
+     * a nested overlay handle Escape and stop it, and anything that reaches
+     * here unclaimed is genuinely meant for the dialog.
+     *
+     * The Tab trap is unaffected: it works by preventing the default focus
+     * move, which is still ahead of it in the bubble phase.
+     */
+    document.addEventListener('keydown', onKeyDown)
     return () => {
-      document.removeEventListener('keydown', onKeyDown, true)
+      document.removeEventListener('keydown', onKeyDown)
       previouslyFocused.current?.focus?.()
     }
   }, [])

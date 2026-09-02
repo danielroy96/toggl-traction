@@ -1,5 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { JSX } from 'react'
 import type { TimeEntry, TogglProject, TogglTask } from '../../../shared/types.js'
+import { useDismiss } from '../lib/useDismiss.js'
 
 /** How a suggestion was chosen. Enter is a commit; a click only fills in. */
 export type PickVia = 'enter' | 'pointer'
@@ -77,6 +79,7 @@ export function DescriptionAutocomplete({
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   /**
    * Set when the whole window was deactivated while this field had focus.
@@ -127,6 +130,24 @@ export function DescriptionAutocomplete({
 
   const canOpen = open && suggestions.length > 0
 
+  const close = (): void => {
+    setOpen(false)
+    setActive(-1)
+  }
+
+  /*
+   * A pointer press outside the field, or focus leaving it, closes the list
+   * immediately. The input's own onBlur below would get there eventually, but
+   * only after its 120ms grace period — which exists to let an option's
+   * mousedown land, not to keep a dead list on screen.
+   *
+   * Window deactivation is left to the listener above: that case also has to
+   * suppress the reopen that reactivating would otherwise trigger.
+   */
+  useDismiss(canOpen, rootRef, (reason) => {
+    if (reason !== 'window-blur') close()
+  })
+
   // Report the state that actually matters to a caller sizing around us: not
   // `open`, but whether a list is on screen. A layout effect so the caller can
   // resize before the frame is painted rather than a frame late.
@@ -164,8 +185,11 @@ export function DescriptionAutocomplete({
         choose(suggestions[active]!, 'enter')
       }
     } else if (e.key === 'Escape') {
-      setOpen(false)
-      setActive(-1)
+      e.preventDefault()
+      // One Escape dismisses one thing: without this it would also reach an
+      // enclosing dialog and close that too.
+      e.stopPropagation()
+      close()
     }
   }
 
@@ -174,6 +198,7 @@ export function DescriptionAutocomplete({
       className={`autocomplete ${compact ? 'autocomplete--compact' : ''} ${
         inline ? 'autocomplete--inline' : ''
       } ${tag ? 'autocomplete--tagged' : ''}`}
+      ref={rootRef}
     >
       <div className="autocomplete__field">
         <input
@@ -211,8 +236,7 @@ export function DescriptionAutocomplete({
           onBlur={() => {
             // Delay so an option's mousedown can register before we close.
             blurTimer.current = setTimeout(() => {
-              setOpen(false)
-              setActive(-1)
+              close()
               onBlur?.()
             }, 120)
           }}

@@ -1,17 +1,141 @@
-/* Layout for the main application window. */
+/*
+ * Layout for the main application window.
+ *
+ * Density rules of thumb, so this stays consistent as it grows:
+ *  - Structural padding is --space-2/--space-3. --space-4/5 is for the inside
+ *    of cards and dialogs, where reading comfort beats fitting more on screen.
+ *  - The window is one vertical stack: title bar, timer bar, one scrolling
+ *    region. Nothing else scrolls, so the list gets all the height that is left.
+ *  - Interactive targets stay at --target-min (44px). Compactness comes out of
+ *    padding, gaps and type size, never out of hit areas.
+ */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
 
 .splash {
+  flex: 1;
   display: grid;
   place-items: center;
-  height: 100vh;
   color: var(--text-muted);
+}
+
+/* ---- Title bar ---- */
+/*
+ * The window is frameless (see frameOptions() in src/main/windows.ts), so this
+ * row *is* the window chrome: it drags the window, double-clicks to maximize,
+ * and on Windows/Linux carries the caption buttons. Anything interactive has to
+ * opt out of the drag region or the platform swallows its clicks.
+ */
+.app__titlebar {
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-3);
+  height: var(--target-min);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  -webkit-app-region: drag;
+}
+.app__titlebar nav,
+.app__titlebar button {
+  -webkit-app-region: no-drag;
+}
+.app__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-right: auto;
+  padding-left: var(--space-3);
+  min-width: 0;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+.app__brand strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app__logo {
+  font-size: 1.1rem;
+}
+/* macOS keeps its own traffic lights floating over the content, so leave them
+   room instead of drawing caption buttons of our own. */
+:root[data-platform='darwin'] .app__brand {
+  padding-left: 4.75rem;
+}
+
+.app__nav {
+  display: flex;
+}
+
+/*
+ * A tab strip filling the bar's height rather than a pill floating inside it:
+ * at 44px there is not room for both a pill and the padding around it, and the
+ * bar has to stay one row tall.
+ */
+.tab {
+  min-height: var(--target-min);
+  padding: 0 var(--space-4);
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+.tab:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.tab--active {
+  background: var(--surface-2);
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+.app__wincontrols {
+  flex: none;
+  display: flex;
+}
+.wincontrol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--target-min);
+  min-height: var(--target-min);
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.wincontrol:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+/* Red close button, as every platform draws it. */
+.wincontrol--close:hover {
+  background: var(--danger);
+  color: var(--text-on-accent);
+}
+/* Inset ring: these sit in the window's very corner, where an offset ring would
+   be drawn half outside it. */
+.wincontrol:focus-visible {
+  outline-offset: -3px;
 }
 
 /* ---- Login ---- */
 .login {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: grid;
   place-items: center;
-  min-height: 100vh;
   padding: var(--space-5);
 }
 .login__card {
@@ -26,190 +150,172 @@
   margin-top: var(--space-2);
 }
 
-.app {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-}
-
-.app__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-5);
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-}
-.app__brand {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: 1.1rem;
-}
-.app__logo {
-  font-size: 1.4rem;
-}
-.app__nav {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.tab {
-  min-height: var(--target-min);
-  padding: 0 var(--space-4);
-  font-size: 1rem;
-  font-weight: 600;
-  font-family: inherit;
-  color: var(--text-secondary);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-}
-.tab:hover {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-.tab--active {
-  background: var(--surface-2);
-  color: var(--text);
-  border-color: var(--border-strong);
-}
-
+/* ---- Main region ---- */
 .app__alerts {
-  padding: var(--space-3) var(--space-5) 0;
+  flex: none;
+  padding: var(--space-2) var(--space-3) 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 
+/*
+ * Deliberately NOT a scroll container. The timer bar's dropdowns are overlays
+ * anchored to it that hang down over the list, and an `overflow` of any kind
+ * here would clip them. Only .app__scroll scrolls.
+ */
 .app__main {
   flex: 1;
-  overflow-y: auto;
-  padding: var(--space-5);
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3) 0;
 }
-
-/* In the horizontal timer bar the picker is a flexible row item, not full width. */
-.timer-bar .ptpick {
-  flex: 0 1 15rem;
-  width: auto;
-  min-width: 10rem;
+.app__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: var(--space-3);
 }
 
 /* ---- Timer bar ---- */
 .timer-bar {
+  flex: none;
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
+  border-radius: var(--radius-md);
+  /* Only the field group may wrap, and it wraps above the controls as a unit —
+     splitting the clock from stop/edit is what put them on separate lines. */
   flex-wrap: wrap;
 }
-.timer-bar__desc {
-  flex: 1 1 16rem;
-  min-width: 12rem;
+.timer-bar__fields {
+  flex: 1 1 22rem;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
-
+.timer-bar__desc {
+  flex: 1 1 12rem;
+  min-width: 5rem;
+}
+/* In the horizontal timer bar the picker is a flexible row item, not full width.
+   Wide enough to hold a real "Project · Task" — the description field has the
+   slack to spare, and a trigger that can only show one of the two is the thing
+   this layout was getting wrong. */
+.timer-bar .ptpick {
+  flex: 0 1 17rem;
+  width: auto;
+  min-width: 8rem;
+}
+.timer-bar__controls {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+}
 .timer-bar__elapsed {
-  font-size: 1.6rem;
+  font-size: 1.5rem;
   font-weight: 700;
-  min-width: 6.5rem;
+  min-width: 5.5rem;
+  padding-right: var(--space-1);
   text-align: right;
 }
 
 /* ---- Columns ---- */
 .app__columns {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 20rem);
-  gap: var(--space-5);
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
   align-items: start;
 }
+/* The suggestions column only exists when there is something in it (see App.tsx). */
+.app__columns--aside {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 18rem);
+}
 @media (max-width: 820px) {
-  .app__columns {
-    grid-template-columns: 1fr;
+  .app__columns--aside {
+    grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.section-label {
+  margin: 0 0 var(--space-2);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
 }
 
 /* ---- Entry list ---- */
 .entry-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-3);
 }
+/* Sticky, so you always know which day you are looking at however far down a
+   long list you have scrolled. */
 .entry-list__day {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-2);
+  background: var(--bg);
   border-bottom: 1px solid var(--border);
-  padding-bottom: var(--space-2);
-  margin-bottom: var(--space-2);
 }
 .entry-list__day h3 {
   margin: 0;
+  font-size: 0.95rem;
 }
 .entry-list__day-total {
   color: var(--text-secondary);
   font-weight: 600;
+  font-size: 0.9rem;
 }
 .entry-list__items {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
 }
 
+/*
+ * One entry, one line. The row is exactly as tall as the 44px action buttons
+ * inside it, so a full day of entries is scannable without scrolling — the old
+ * two-line row fitted one entry per screen.
+ */
 .entry-row {
   display: flex;
   align-items: center;
-  gap: var(--space-2) var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-md);
-  /* Wrap the meta/actions onto a second line rather than overflowing the page
-     at narrow widths. */
-  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-height: var(--target-min);
+  padding-right: var(--space-1);
+  border-bottom: 1px solid var(--border);
+}
+.entry-list__items > .entry-row:last-child {
+  border-bottom: 0;
 }
 .entry-row:hover {
   background: var(--surface);
 }
+/* Description doubles as the edit affordance, and takes the row's slack. */
 .entry-row__desc {
-  flex: 1 1 10rem;
+  flex: 1 1 6rem;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Grouped project/time/duration; shrinks and can drop to its own line. */
-.entry-row__meta {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
-  min-width: 0;
-  flex-wrap: wrap;
-}
-.entry-row__meta .badge {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: inline-block;
-  max-width: 16rem;
-}
-.entry-row__actions {
-  display: flex;
-  gap: var(--space-1);
-  margin-left: auto;
-  flex: none;
-}
-/* Description doubles as the edit affordance. */
 .entry-row__edit {
   text-align: left;
   background: transparent;
@@ -223,6 +329,37 @@
 .entry-row__edit:hover {
   background: var(--surface-2);
   text-decoration: underline;
+}
+/* The project/task the entry is booked against — and the colour belongs to it,
+   which is why the dot lives inside this badge rather than out at the start of
+   the row. */
+.entry-row__badge {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 40%;
+}
+.entry-row__time {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.entry-row__dur {
+  flex: none;
+  min-width: 4rem;
+  text-align: right;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.entry-row__actions {
+  flex: none;
+  display: flex;
+}
+/* Narrow window: the clock range is the first thing worth giving up — the
+   duration says most of what it said, in a quarter of the width. */
+@media (max-width: 700px) {
+  .entry-row__time {
+    display: none;
+  }
 }
 
 /* ---- Modal ---- */
@@ -267,22 +404,13 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  margin-top: var(--space-5);
+  margin-top: var(--space-4);
   flex-wrap: wrap;
 }
 .modal__actions-right {
   display: flex;
   gap: var(--space-2);
   margin-left: auto;
-}
-.entry-row__time {
-  color: var(--text-muted);
-  font-size: 0.9rem;
-}
-.entry-row__dur {
-  font-weight: 600;
-  min-width: 3.5rem;
-  text-align: right;
 }
 
 /* ---- Suggestions ---- */
@@ -293,12 +421,16 @@
 .suggestions {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+.suggestions h2 {
+  font-size: 1rem;
+  margin-bottom: var(--space-2);
 }
 .suggestions__list {
   list-style: none;
-  margin: var(--space-3) 0 0;
+  margin: var(--space-2) 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -319,11 +451,11 @@
 .settings {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
   max-width: 42rem;
 }
 .settings .card {
-  padding: var(--space-5);
+  padding: var(--space-4);
 }
 .settings .card h2 {
   margin-top: 0;
@@ -334,7 +466,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-2) 0;
+  padding: var(--space-1) 0;
   cursor: pointer;
   min-height: var(--target-min);
 }
@@ -388,7 +520,6 @@
 }
 .empty {
   color: var(--text-muted);
-  padding: var(--space-5);
+  padding: var(--space-4);
   text-align: center;
 }
-

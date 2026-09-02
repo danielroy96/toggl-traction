@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import type { JSX } from 'react'
 import { useApp } from '../store/app.js'
 import type { TimeEntry } from '../../../shared/types.js'
 import { Modal } from './Modal.js'
