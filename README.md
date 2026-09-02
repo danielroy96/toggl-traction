@@ -60,11 +60,16 @@ WCAG contrast, timer tests, build) must pass before merging.
 - **Rich editing** — every time entry, running or finished, is editable:
   description, project/task, and start/stop times, plus delete. Click an entry
   to open the editor; the running entry's description/project/task update live.
-- **Always-on-top mini timer** — a compact, **always-editable** panel: elapsed
-  time and start/stop, plus the same description autocomplete and project/task
-  picker as the main window, so "repeat what I did before" works identically in
-  both. No edit mode to enter first. Stays above other apps and survives
-  display changes / fullscreen apps (see _Reliability_).
+- **Always-on-top mini timer** — one fixed-size line: elapsed time, the same
+  description autocomplete as the main window, and start/stop. The field carries
+  a tag showing the project's colour and the task it will be booked against, so
+  the whole entry is readable at a glance. Picking a suggestion fills in its
+  project and task too, and choosing one with Enter starts the timer outright —
+  so the single field covers "repeat what I did before" without the panel ever
+  changing size. Expand it on the rare occasion you need to set project/task by
+  hand. Its dropdowns overlay the desktop rather than growing the panel. Stays
+  above other apps and survives display changes / fullscreen apps (see
+  _Reliability_).
 - **Refresh on demand** — Toggl can be driven from anywhere (web, mobile,
   another device), so both the timer bar and the mini timer carry a refresh
   button that reconciles immediately and reports how fresh the state is. The

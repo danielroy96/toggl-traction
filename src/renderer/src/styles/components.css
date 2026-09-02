@@ -306,8 +306,59 @@
   position: relative;
   width: 100%;
 }
-.autocomplete > .input {
+/* Wraps the input so a project/task tag can sit inside the field's border. */
+.autocomplete__field {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.autocomplete .input {
   width: 100%;
+}
+
+/* Tagged: the border moves from the input to the field, so the tag reads as
+   part of the same control rather than something parked next to it. */
+.autocomplete--tagged .autocomplete__field {
+  gap: var(--space-2);
+  padding-right: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+}
+.autocomplete--tagged .autocomplete__field:hover {
+  border-color: var(--text-muted);
+}
+.autocomplete--tagged .input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  background: transparent;
+  border-color: transparent;
+}
+/* The ring belongs to the whole field now. A text input matches :focus-visible
+   however it was focused, so :focus-within behaves the same way here. */
+.autocomplete--tagged .autocomplete__field:focus-within {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: -2px;
+}
+.autocomplete--tagged .input:focus-visible {
+  outline: none;
+}
+.autocomplete__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  /* Shrinks before the description does, and never takes more than its share. */
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 42%;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+.autocomplete__tag-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .autocomplete__list {
   position: absolute;
@@ -368,9 +419,9 @@
 
 /* Compact variants for the mini timer: a smaller field and tighter, stacked
    options so a suggestion still fits the narrow window. */
-.autocomplete--compact > .input {
+.autocomplete--compact .input {
   min-height: 2.25rem;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   padding: var(--space-1) var(--space-2);
 }
 .autocomplete--compact .autocomplete__opt {
@@ -397,13 +448,55 @@
   width: 0.55rem;
   height: 0.55rem;
 }
+.autocomplete--compact .autocomplete__tag {
+  font-size: 0.75rem;
+}
+.autocomplete--compact .autocomplete__tag .project-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+}
 
-/* Compact trigger for the mini timer (aligns flush with the description input,
-   no leading dot). */
+/* Compact picker for the mini timer (trigger aligns flush with the description
+   input, no leading dot). Its labels are a whole "Project · Task" path rather
+   than a single name, so the type runs a step smaller than the description
+   field's — at the app's size most of the task name is lost to the ellipsis. */
 .ptpick--compact .ptpick__trigger {
   min-height: 2.25rem;
+  gap: var(--space-2);
   padding: var(--space-1) var(--space-2);
-  font-size: 0.9rem;
+  font-size: 0.8rem;
+}
+.ptpick--compact .ptpick__trigger .project-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+}
+.ptpick--compact .ptpick__panel {
+  gap: var(--space-1);
+  padding: var(--space-1);
+}
+.ptpick--compact .ptpick__search {
+  min-height: 2rem;
+  padding: var(--space-1) var(--space-2);
+  font-size: 0.8rem;
+}
+.ptpick--compact .ptpick__opt {
+  min-height: 1.9rem;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  font-size: 0.8rem;
+}
+.ptpick--compact .ptpick__opt .project-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+}
+/* The "currently selected" tick, sized to the smaller row. */
+.ptpick--compact .ptpick__opt svg {
+  width: 14px;
+  height: 14px;
+}
+.ptpick--compact .ptpick__empty {
+  padding: var(--space-2);
+  font-size: 0.8rem;
 }
 
 .badge__task {

@@ -8,8 +8,11 @@ import { useApp } from '../store/app.js'
  */
 export function SuggestionsPanel(): JSX.Element {
   const { suggestions, settings, start, projects } = useApp()
-  const projectName = (id?: number | null): string | undefined =>
-    id == null ? undefined : projects.find((p) => p.id === id)?.name
+  const projectOf = (id?: number | null): { name: string; color: string } | undefined => {
+    if (id == null) return undefined
+    const p = projects.find((x) => x.id === id)
+    return p ? { name: p.name, color: p.color } : undefined
+  }
   const anyEnabled =
     !!settings &&
     (settings.integrations.windowDetection ||
@@ -30,15 +33,20 @@ export function SuggestionsPanel(): JSX.Element {
       )}
       <ul className="suggestions__list">
         {suggestions.map((s) => {
-          const project = projectName(s.projectId)
+          const project = projectOf(s.projectId)
           return (
             <li key={s.id} className="suggestion-row">
               <span className={`badge badge--${s.source}`}>{sourceLabel(s.source)}</span>
               <span className="suggestion-row__desc">{s.description}</span>
               {s.ticketRef && <span className="badge">{s.ticketRef}</span>}
               {project && (
-                <span className="badge badge--project" title="Suggested from your history">
-                  {project}
+                <span className="badge" title="Suggested from your history">
+                  <span
+                    className="project-dot"
+                    style={{ background: project.color }}
+                    aria-hidden="true"
+                  />
+                  <span className="badge__label">{project.name}</span>
                 </span>
               )}
               <button

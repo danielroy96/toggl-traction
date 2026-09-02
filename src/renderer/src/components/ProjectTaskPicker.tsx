@@ -1,16 +1,19 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { TogglProject, TogglTask } from '../../../shared/types.js'
 
 interface Props {
   projectId: number | null
   taskId: number | null
   onChange: (projectId: number | null, taskId: number | null) => void
+  /** Fired when the panel opens or closes. Lets a caller whose container is
+   *  sized to its content (the mini window) make room for it. */
+  onOpenChange?: (open: boolean) => void
   projects: TogglProject[]
   tasks: TogglTask[]
-  /** Compact styling for the mini timer (also renders the panel inline). */
+  /** Compact styling (smaller trigger) for the mini timer. */
   compact?: boolean
-  /** Render the dropdown in normal flow instead of an overlay (for the mini
-   *  window, whose panel would otherwise be clipped, and modals). */
+  /** Render the panel in normal flow instead of an overlay, for containers that
+   *  would clip an overlay and cannot be grown to fit one (e.g. a modal). */
   inline?: boolean
   id?: string
   ariaLabel?: string
@@ -37,6 +40,7 @@ export function ProjectTaskPicker({
   projectId,
   taskId,
   onChange,
+  onOpenChange,
   projects,
   tasks,
   compact,
@@ -50,7 +54,17 @@ export function ProjectTaskPicker({
   const [active, setActive] = useState(0)
   const rootRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const panelInline = compact || inline
+  const listRef = useRef<HTMLUListElement>(null)
+
+  // A layout effect so a caller sizing around the panel can do so before the
+  // frame is painted rather than a frame late.
+  const openChangeRef = useRef(onOpenChange)
+  useLayoutEffect(() => {
+    openChangeRef.current = onOpenChange
+  })
+  useLayoutEffect(() => {
+    openChangeRef.current?.(open)
+  }, [open])
 
   const options = useMemo<Opt[]>(() => {
     const opts: Opt[] = [
@@ -101,13 +115,25 @@ export function ProjectTaskPicker({
   }, [open])
 
   useEffect(() => {
-    if (open) inputRef.current?.focus()
+    // preventScroll: focusing a control the browser thinks is off-screen (the
+    // panel briefly is, in the mini window, until it has been made room for)
+    // otherwise scrolls an ancestor to reveal it — which drags the whole UI.
+    if (open) inputRef.current?.focus({ preventScroll: true })
   }, [open])
 
-  // Keep the active option scrolled into view.
+  // Keep the active option in view by scrolling the list and nothing else.
+  // scrollIntoView() would be shorter but it walks up every scrollable ancestor
+  // — including the document — so in the mini window it shunted the card off
+  // the top of the window instead of just scrolling the list.
   useEffect(() => {
     if (!open) return
-    document.getElementById(`${uid}-opt-${active}`)?.scrollIntoView({ block: 'nearest' })
+    const list = listRef.current
+    const opt = document.getElementById(`${uid}-opt-${active}`)
+    if (!list || !opt) return
+    const l = list.getBoundingClientRect()
+    const o = opt.getBoundingClientRect()
+    if (o.top < l.top) list.scrollTop -= l.top - o.top
+    else if (o.bottom > l.bottom) list.scrollTop += o.bottom - l.bottom
   }, [active, open, uid])
 
   const openPanel = (): void => {
@@ -140,7 +166,7 @@ export function ProjectTaskPicker({
 
   return (
     <div
-      className={`ptpick ${compact ? 'ptpick--compact' : ''} ${panelInline ? 'ptpick--inline' : ''}`}
+      className={`ptpick ${compact ? 'ptpick--compact' : ''} ${inline ? 'ptpick--inline' : ''}`}
       ref={rootRef}
     >
       <button
@@ -152,13 +178,13 @@ export function ProjectTaskPicker({
         aria-label={`${ariaLabel}: ${selected.label}`}
         onClick={() => (open ? setOpen(false) : openPanel())}
       >
-        {!compact && (
-          <span
-            className="project-dot"
-            style={{ background: selected.color ?? 'var(--border-strong)' }}
-            aria-hidden="true"
-          />
-        )}
+        {/* Always shown: a project/task name is never displayed without the
+            colour that identifies it. */}
+        <span
+          className="project-dot"
+          style={{ background: selected.color ?? 'var(--border-strong)' }}
+          aria-hidden="true"
+        />
         <span className="ptpick__value">{selected.label}</span>
         <svg
           className="ptpick__caret"
@@ -189,7 +215,13 @@ export function ProjectTaskPicker({
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
           />
-          <ul className="ptpick__list" id={`${uid}-list`} role="listbox" aria-label={ariaLabel}>
+          <ul
+            ref={listRef}
+            className="ptpick__list"
+            id={`${uid}-list`}
+            role="listbox"
+            aria-label={ariaLabel}
+          >
             {filtered.length === 0 && <li className="ptpick__empty">No matches</li>}
             {filtered.map((o, i) => (
               <li

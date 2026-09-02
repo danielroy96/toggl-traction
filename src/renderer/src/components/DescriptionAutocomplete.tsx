@@ -1,5 +1,21 @@
-import { useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { TimeEntry, TogglProject, TogglTask } from '../../../shared/types.js'
+
+/** How a suggestion was chosen. Enter is a commit; a click only fills in. */
+export type PickVia = 'enter' | 'pointer'
+
+/**
+ * A project/task tag rendered inside the field, after the text. Use it where
+ * the project/task picker is not on screen, so the field still says what the
+ * entry will be booked against — the dot carries the project colour, exactly as
+ * it does in the suggestion list below.
+ */
+export interface FieldTag {
+  label: string
+  color: string | null
+  /** Full "Project · Task" for the tooltip, when `label` is only part of it. */
+  title?: string
+}
 
 export interface EntryDetails {
   description: string
@@ -10,18 +26,25 @@ export interface EntryDetails {
 interface Props {
   value: string
   onChange: (value: string) => void
-  /** Fired when a suggestion is chosen — copies its description + project/task. */
-  onPick: (details: EntryDetails) => void
+  /** Fired when a suggestion is chosen — copies its description + project/task.
+   *  `via` lets a caller treat Enter as a commit (the mini timer starts the
+   *  timer on it) while a click just fills the fields. */
+  onPick: (details: EntryDetails, via: PickVia) => void
   onBlur?: () => void
+  /** Fired when the suggestion list appears or disappears. Lets a caller whose
+   *  container is sized to its content (the mini window) make room for it. */
+  onOpenChange?: (open: boolean) => void
   entries: TimeEntry[]
   projects: TogglProject[]
   tasks: TogglTask[]
   placeholder?: string
   ariaLabel?: string
-  /** Compact styling for the mini timer (also renders the list inline). */
+  /** Project/task shown inside the field. Omit where a picker is visible. */
+  tag?: FieldTag | null
+  /** Compact styling (smaller field and options) for the mini timer. */
   compact?: boolean
-  /** Render the list in normal flow instead of an overlay (for the mini window,
-   *  whose overlay would be clipped by the small always-on-top window). */
+  /** Render the list in normal flow instead of an overlay, for containers that
+   *  would clip an overlay and cannot be grown to fit one. */
   inline?: boolean
 }
 
@@ -40,11 +63,13 @@ export function DescriptionAutocomplete({
   onChange,
   onPick,
   onBlur,
+  onOpenChange,
   entries,
   projects,
   tasks,
   placeholder,
   ariaLabel,
+  tag,
   compact,
   inline
 }: Props): JSX.Element {
@@ -52,7 +77,27 @@ export function DescriptionAutocomplete({
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const listInline = compact || inline
+  const inputRef = useRef<HTMLInputElement>(null)
+  /**
+   * Set when the whole window was deactivated while this field had focus.
+   *
+   * Deactivating fires `blur` on the input (with DOM focus still on it) and
+   * reactivating fires `focus` again. Left alone, that closes the list and then
+   * immediately reopens it — and in a window sized to its content, that is a
+   * shrink followed by a grow. It was observed cycling indefinitely. Closing is
+   * right; reopening unasked is not, so the next focus is swallowed instead.
+   */
+  const reopenSuppressed = useRef(false)
+
+  useEffect(() => {
+    const onWindowBlur = (): void => {
+      reopenSuppressed.current = document.activeElement === inputRef.current
+      setOpen(false)
+      setActive(-1)
+    }
+    window.addEventListener('blur', onWindowBlur)
+    return () => window.removeEventListener('blur', onWindowBlur)
+  }, [])
 
   const suggestions = useMemo(() => {
     const seen = new Set<string>()
@@ -82,8 +127,19 @@ export function DescriptionAutocomplete({
 
   const canOpen = open && suggestions.length > 0
 
-  const choose = (d: EntryDetails): void => {
-    onPick(d)
+  // Report the state that actually matters to a caller sizing around us: not
+  // `open`, but whether a list is on screen. A layout effect so the caller can
+  // resize before the frame is painted rather than a frame late.
+  const openChangeRef = useRef(onOpenChange)
+  useLayoutEffect(() => {
+    openChangeRef.current = onOpenChange
+  })
+  useLayoutEffect(() => {
+    openChangeRef.current?.(canOpen)
+  }, [canOpen])
+
+  const choose = (d: EntryDetails, via: PickVia): void => {
+    onPick(d, via)
     setOpen(false)
     setActive(-1)
   }
@@ -102,8 +158,10 @@ export function DescriptionAutocomplete({
       setActive((i) => (i <= 0 ? suggestions.length - 1 : i - 1))
     } else if (e.key === 'Enter') {
       if (active >= 0 && active < suggestions.length) {
+        // preventDefault stops the implicit form submit, so choosing a
+        // suggestion never also fires the form's own Enter handling.
         e.preventDefault()
-        choose(suggestions[active]!)
+        choose(suggestions[active]!, 'enter')
       }
     } else if (e.key === 'Escape') {
       setOpen(false)
@@ -114,36 +172,62 @@ export function DescriptionAutocomplete({
   return (
     <div
       className={`autocomplete ${compact ? 'autocomplete--compact' : ''} ${
-        listInline ? 'autocomplete--inline' : ''
-      }`}
+        inline ? 'autocomplete--inline' : ''
+      } ${tag ? 'autocomplete--tagged' : ''}`}
     >
-      <input
-        className="input"
-        type="text"
-        role="combobox"
-        aria-expanded={canOpen}
-        aria-controls={`${uid}-listbox`}
-        aria-autocomplete="list"
-        aria-activedescendant={active >= 0 ? `${uid}-opt-${active}` : undefined}
-        placeholder={placeholder}
-        aria-label={ariaLabel}
-        value={value}
-        onChange={(e) => {
-          onChange(e.target.value)
-          setOpen(true)
-          setActive(-1)
-        }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={onKeyDown}
-        onBlur={() => {
-          // Delay so an option's mousedown can register before we close.
-          blurTimer.current = setTimeout(() => {
-            setOpen(false)
+      <div className="autocomplete__field">
+        <input
+          ref={inputRef}
+          className="input"
+          type="text"
+          role="combobox"
+          aria-expanded={canOpen}
+          aria-controls={`${uid}-listbox`}
+          aria-autocomplete="list"
+          aria-activedescendant={active >= 0 ? `${uid}-opt-${active}` : undefined}
+          placeholder={placeholder}
+          aria-label={ariaLabel}
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value)
+            setOpen(true)
             setActive(-1)
-            onBlur?.()
-          }, 120)
-        }}
-      />
+          }}
+          onFocus={() => {
+            // Swallow the focus that merely comes from the window being reactivated.
+            if (reopenSuppressed.current) {
+              reopenSuppressed.current = false
+              return
+            }
+            setOpen(true)
+          }}
+          onMouseDown={() => {
+            // An explicit click on the field is always a request to see the list,
+            // including the click that reactivates the window (see above).
+            reopenSuppressed.current = false
+            setOpen(true)
+          }}
+          onKeyDown={onKeyDown}
+          onBlur={() => {
+            // Delay so an option's mousedown can register before we close.
+            blurTimer.current = setTimeout(() => {
+              setOpen(false)
+              setActive(-1)
+              onBlur?.()
+            }, 120)
+          }}
+        />
+        {tag && (
+          <span className="autocomplete__tag" title={tag.title ?? tag.label}>
+            <span
+              className="project-dot"
+              style={{ background: tag.color ?? 'var(--border-strong)' }}
+              aria-hidden="true"
+            />
+            <span className="autocomplete__tag-label">{tag.label}</span>
+          </span>
+        )}
+      </div>
       {canOpen && (
         <ul className="autocomplete__list" id={`${uid}-listbox`} role="listbox">
           {suggestions.map((d, i) => {
@@ -159,7 +243,7 @@ export function DescriptionAutocomplete({
                   // Prevent the input blur from firing before the click.
                   e.preventDefault()
                   if (blurTimer.current) clearTimeout(blurTimer.current)
-                  choose(d)
+                  choose(d, 'pointer')
                 }}
                 onMouseEnter={() => setActive(i)}
               >
