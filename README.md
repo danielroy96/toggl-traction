@@ -52,11 +52,21 @@ WCAG contrast, timer tests, build) must pass before merging.
 - **Sign in with a Toggl API token** (OAuth can be layered on later — see
   _Auth_ below). The token is stored encrypted with the OS keychain via
   Electron `safeStorage`, never in plaintext.
-- **Modern, scalable UI**: timer bar, entries grouped by day with daily totals,
-  resume/delete, and a settings screen.
+- **Compact, scalable main window** — no OS title bar: the app's own header is
+  the window chrome (it drags, double-clicks to maximize, and draws the caption
+  buttons on Windows/Linux; macOS keeps its traffic lights). Below it, a
+  single-line timer bar — description, project/task, clock, refresh, edit,
+  start/stop — pinned above the one region that scrolls, and entries grouped by
+  day with daily totals, one entry per line: description, the task it is booked
+  against, times, duration, resume and delete. Roughly a dozen entries fit where
+  the old two-line rows fitted one.
 - **Projects and tasks** — full Toggl Project → Task hierarchy in a single
-  accessible picker (e.g. _PROJ – Platform · Code review_), in both the main
-  window and the mini timer. Degrades to projects-only on plans without tasks.
+  accessible picker, shown as a hierarchy: each project once, its tasks indented
+  beneath it under a guide line in the project's colour, so the width goes to
+  the task name rather than to the project name repeated on every row. Options
+  still carry the whole _Project · Task_ path as their accessible name. In both
+  the main window and the mini timer; degrades to projects-only on plans without
+  tasks.
 - **Rich editing** — every time entry, running or finished, is editable:
   description, project/task, and start/stop times, plus delete. Click an entry
   to open the editor; the running entry's description/project/task update live.
@@ -92,11 +102,21 @@ Accessibility was a first-class requirement, not an afterthought:
   (`font-size: 100%`), so the operating system's accessibility text-size
   setting scales the whole UI. A manual multiplier (100–200%) can scale further.
   Everything is sized in `rem`, so the entire layout scales proportionally.
-- **Large targets** — all interactive controls are at least 44×44px at default
-  scale (`--target-min`).
+- **Large targets** — interactive controls in the main window are at least
+  44×44px at default scale (`--target-min`), and the entry row is sized by them
+  rather than the other way round: density comes out of padding, gaps and type
+  size, never out of hit areas. The single-row mini timer is the one documented
+  exception (2rem controls, still with a visible focus ring).
 - **Visible focus** — a 3px focus ring (contrast-checked) on every focusable
   element for keyboard users; native `<select>`/`<input>`/checkbox elements are
   used so screen-reader and keyboard semantics come for free.
+- **Dropdowns dismiss predictably** — every overlay (the project/task picker and
+  the description autocomplete, in both windows) closes on Escape, on a pointer
+  press outside it, on focus leaving it, and when the window is deactivated.
+  Escape is claimed innermost-first, so one press closes one thing: a dropdown
+  open inside the entry editor closes the dropdown, not the dialog behind it.
+  Keyboard dismissal puts focus back on the control that opened the overlay.
+  See `src/renderer/src/lib/useDismiss.ts`.
 - Skip link, `aria-live` timer, descriptive `aria-label`s, and
   `prefers-reduced-motion` support.
 
@@ -141,10 +161,25 @@ never disagree.
 
 ## Getting started
 
+Node **^20.19 || >=22.12** (enforced by `engines`; CI runs 22) — Vite 7 and
+electron-vite 5 both require it.
+
 ```bash
 npm install          # installs deps AND downloads the Electron binary
 npm run dev          # launches the app with hot reload
 ```
+
+> **Note on `allowScripts`:** npm blocks install scripts unless `package.json`
+> lists the exact `name@version`, and Electron's binary download *is* an install
+> script. Bumping Electron therefore means updating that entry too, or
+> `npm run dev` fails with a missing binary — see the note below.
+
+> **Why Vite is pinned to 7, not 8:** `electron-vite@5` declares
+> `vite: ^5 || ^6 || ^7`, while `@vitejs/plugin-react@6` requires `vite: ^8`.
+> The two cannot both be satisfied, so the compatible ceiling is
+> **vite 7 + @vitejs/plugin-react 5 + electron-vite 5**. Everything else is on
+> its latest release. Move Vite to 8 only once electron-vite supports it, and
+> bump the React plugin in the same commit.
 
 Then sign in: on track.toggl.com go to **Profile settings → API Token**, copy
 it, and paste it into the sign-in screen.

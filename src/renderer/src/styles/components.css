@@ -62,13 +62,15 @@
   background: var(--danger-hover);
 }
 
-/* Big circular start/stop control used in timer bars. */
+/* Big circular start/stop control used in timer bars. Sized to --target-min:
+   it was the tallest thing in the timer bar and therefore what set the bar's
+   height, for no gain over a full-size 44px target. */
 .btn-round {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 3.25rem;
-  height: 3.25rem;
+  width: var(--target-min);
+  height: var(--target-min);
   border-radius: 50%;
   border: 2px solid transparent;
   cursor: pointer;
@@ -105,9 +107,13 @@
   color: var(--text-secondary);
   cursor: pointer;
 }
-.icon-btn:hover {
+.icon-btn:hover:not([disabled]) {
   background: var(--surface-hover);
   color: var(--text);
+}
+.icon-btn[disabled] {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .input,
@@ -226,23 +232,63 @@
 .ptpick__trigger:hover {
   border-color: var(--text-muted);
 }
+/*
+ * "Project · Task", with the project truncating and the task kept whole: the
+ * task is what identifies the selection, and in a narrow trigger a single
+ * ellipsised string threw exactly that half away. The shrink factors, not the
+ * order, are what decide who loses characters first.
+ */
 .ptpick__value {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: baseline;
+  white-space: nowrap;
+}
+.ptpick__value-project {
+  /* Takes all of the shrink, down to nothing if that is what it costs — but no
+     grow, or in a wide trigger it stretches and parks the task at the far end
+     instead of right after the project name. */
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+}
+/*
+ * Never shrinks — proportional shrink left it a fraction of a pixel short and
+ * ellipsised the last character for no reason. It is bounded instead, so it
+ * cannot crowd the project out entirely.
+ *
+ * The bound is generous because when neither name fits, the task is the half
+ * worth keeping: the project is also spelled out by the dot's colour, the
+ * tooltip and the accessible name, and the task is not.
+ */
+.ptpick__value-task {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 70%;
+  padding-left: 0.35em;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .ptpick__caret {
   flex: none;
   color: var(--text-muted);
 }
 
+/*
+ * Sized to its longest row rather than to the trigger. The trigger is a narrow
+ * row item in the timer bar, and pinning the panel to it is what truncated the
+ * project names inside — a dropdown is allowed to be wider than the control
+ * that opens it, and capped so it can't run off a narrow window.
+ */
 .ptpick__panel {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  right: 0;
+  min-width: 100%;
+  width: max-content;
+  max-width: min(26rem, 80vw);
   z-index: 40;
   display: flex;
   flex-direction: column;
@@ -266,7 +312,7 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 14rem;
+  max-height: 18rem;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -286,6 +332,34 @@
 }
 .ptpick__opt--active {
   background: var(--surface-hover);
+}
+
+/*
+ * A project shown only to say what the tasks under it belong to — it did not
+ * itself match the search, so it is a heading, not a choice. It must not look
+ * like one: no hover, no pointer, and the keyboard walks straight past it.
+ */
+.ptpick__group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/*
+ * A task, indented under its project. The guide line carries the project's own
+ * colour, so the colour still reaches every task even though only the project
+ * row draws the dot — and the indent is past where the project's text starts,
+ * so the nesting is unmistakable rather than looking like a stray margin.
+ */
+.ptpick__opt--task {
+  margin-left: 1.5rem;
+  padding-left: var(--space-2);
+  border-left: 2px solid var(--guide, var(--border-strong));
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 .ptpick__opt-label {
   flex: 1;
@@ -473,6 +547,7 @@
 .ptpick--compact .ptpick__panel {
   gap: var(--space-1);
   padding: var(--space-1);
+  max-width: 100%;
 }
 .ptpick--compact .ptpick__search {
   min-height: 2rem;
@@ -488,6 +563,18 @@
 .ptpick--compact .ptpick__opt .project-dot {
   width: 0.55rem;
   height: 0.55rem;
+}
+.ptpick--compact .ptpick__group {
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2) 0;
+  font-size: 0.75rem;
+}
+.ptpick--compact .ptpick__group .project-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+}
+.ptpick--compact .ptpick__opt--task {
+  margin-left: 1rem;
 }
 /* The "currently selected" tick, sized to the smaller row. */
 .ptpick--compact .ptpick__opt svg {

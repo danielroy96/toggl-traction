@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { JSX } from 'react'
 import type {
   AppSettings,
   TimeEntry,

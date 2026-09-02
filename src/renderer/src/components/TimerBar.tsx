@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { JSX } from 'react'
 import { useApp } from '../store/app.js'
 import { useElapsed } from '../lib/useElapsed.js'
 import { formatDuration, formatSyncedAt } from '../lib/format.js'
@@ -11,6 +12,12 @@ import { EntryEditor } from './EntryEditor.js'
  * large start/stop button. Start/stop is guarded by `timer.pending` so a
  * double-click cannot fire two requests — the main-process TimerManager also
  * serialises them as a second line of defence.
+ *
+ * The row is deliberately two groups rather than seven loose flex items. The
+ * clock and the three controls belong together and must never be split across
+ * lines — that used to happen the moment the window narrowed, leaving stop and
+ * edit stranded on a second row — so only the two fields can wrap, and they
+ * wrap above the controls as a unit.
  */
 export function TimerBar(): JSX.Element {
   const {
@@ -99,80 +106,80 @@ export function TimerBar(): JSX.Element {
   return (
     <>
     <form className="timer-bar" onSubmit={onSubmit} aria-label="Timer">
-      <div className="timer-bar__desc">
-        <DescriptionAutocomplete
-          value={description}
-          onChange={setDescription}
-          onPick={onPickSuggestion}
-          onBlur={saveRunningDescription}
-          entries={entries}
+      <div className="timer-bar__fields">
+        <div className="timer-bar__desc">
+          <DescriptionAutocomplete
+            value={description}
+            onChange={setDescription}
+            onPick={onPickSuggestion}
+            onBlur={saveRunningDescription}
+            entries={entries}
+            projects={projects}
+            tasks={tasks}
+            placeholder="What are you working on?"
+            ariaLabel="Time entry description"
+          />
+        </div>
+
+        <ProjectTaskPicker
+          projectId={projectId}
+          taskId={taskId}
+          onChange={onPickProjectTask}
           projects={projects}
           tasks={tasks}
-          placeholder="What are you working on?"
-          ariaLabel="Time entry description"
         />
       </div>
 
-      <ProjectTaskPicker
-        projectId={projectId}
-        taskId={taskId}
-        onChange={onPickProjectTask}
-        projects={projects}
-        tasks={tasks}
-      />
+      <div className="timer-bar__controls">
+        <div
+          className="timer-bar__elapsed mono"
+          role="timer"
+          aria-live={running ? 'off' : 'polite'}
+          aria-label={running ? `Elapsed time ${formatDuration(elapsed)}` : 'Timer stopped'}
+        >
+          {formatDuration(running ? elapsed : 0)}
+        </div>
 
-      <div
-        className="timer-bar__elapsed mono"
-        role="timer"
-        aria-live={running ? 'off' : 'polite'}
-        aria-label={running ? `Elapsed time ${formatDuration(elapsed)}` : 'Timer stopped'}
-      >
-        {formatDuration(running ? elapsed : 0)}
-      </div>
+        {/* Toggl is the source of truth and it can be changed from anywhere (web,
+            mobile, another device). The main process reconciles on a slow timer to
+            stay inside the API rate limit, so this is the escape hatch for when
+            you want the app caught up right now. */}
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={() => void syncNow()}
+          disabled={syncing}
+          aria-label={syncing ? 'Refreshing from Toggl' : 'Refresh from Toggl'}
+          title={`Refresh from Toggl — ${formatSyncedAt(timer.lastSyncedAt)}`}
+        >
+          <RefreshIcon className={syncing ? 'spin' : undefined} />
+        </button>
 
-      {/* Toggl is the source of truth and it can be changed from anywhere (web,
-          mobile, another device). The main process reconciles on a slow timer to
-          stay inside the API rate limit, so this is the escape hatch for when
-          you want the app caught up right now. */}
-      <button
-        type="button"
-        className="icon-btn"
-        onClick={() => void syncNow()}
-        disabled={syncing}
-        aria-label={syncing ? 'Refreshing from Toggl' : 'Refresh from Toggl'}
-        title={`Refresh from Toggl — ${formatSyncedAt(timer.lastSyncedAt)}`}
-      >
-        <RefreshIcon className={syncing ? 'spin' : undefined} />
-      </button>
-
-      {running && (
+        {/* Only meaningful for a running entry, but the slot is always reserved:
+            the controls to its right must not shuffle sideways every time the
+            timer starts or stops. */}
         <button
           type="button"
           className="icon-btn"
           onClick={() => setEditing(true)}
+          disabled={!running}
           aria-label="Edit running entry, including its start time"
           title="Edit entry / adjust start time"
         >
           <EditIcon />
         </button>
-      )}
 
-      <button
-        type="button"
-        className={`btn-round ${running ? 'btn-round--stop' : 'btn-round--start'}`}
-        onClick={onPrimary}
-        disabled={timer.pending}
-        aria-label={running ? 'Stop timer' : 'Start timer'}
-        title={running ? 'Stop timer' : 'Start timer'}
-      >
-        {timer.pending ? (
-          <Spinner />
-        ) : running ? (
-          <StopIcon />
-        ) : (
-          <PlayIcon />
-        )}
-      </button>
+        <button
+          type="button"
+          className={`btn-round ${running ? 'btn-round--stop' : 'btn-round--start'}`}
+          onClick={onPrimary}
+          disabled={timer.pending}
+          aria-label={running ? 'Stop timer' : 'Start timer'}
+          title={running ? 'Stop timer' : 'Start timer'}
+        >
+          {timer.pending ? <Spinner /> : running ? <StopIcon /> : <PlayIcon />}
+        </button>
+      </div>
 
       {projectId != null && (
         <span className="sr-only">

@@ -160,9 +160,19 @@ export interface StartTimerInput {
 /** Result wrapper so IPC calls surface errors without throwing across the bridge. */
 export type IpcResult<T> = { ok: true; data: T } | { ok: false; error: string }
 
+/**
+ * Whether the main window is currently maximized. The window is frameless, so
+ * its own title bar draws the maximize/restore control and needs to know which
+ * of the two to show.
+ */
+export interface WindowState {
+  maximized: boolean
+}
+
 /** Channel names for main -> renderer broadcasts. */
 export const CHANNELS = {
   timerStateChanged: 'timer:state-changed',
+  windowStateChanged: 'window:state-changed',
   settingsChanged: 'settings:changed',
   suggestionsChanged: 'suggestions:changed',
   authChanged: 'auth:changed',
@@ -189,6 +199,10 @@ export const INVOKE = {
   calendarConnect: 'calendar:connect',
   calendarDisconnect: 'calendar:disconnect',
   calendarGetStatus: 'calendar:get-status',
+  windowMinimize: 'window:minimize',
+  windowToggleMaximize: 'window:toggle-maximize',
+  windowClose: 'window:close',
+  windowGetState: 'window:get-state',
   miniShow: 'mini:show',
   miniHide: 'mini:hide',
   miniSetContentSize: 'mini:set-content-size'

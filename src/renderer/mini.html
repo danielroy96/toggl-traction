@@ -3,6 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- CSP: no remote content; only self + the Toggl API which the main process calls.
+         In `npm run dev` the console logs one blocked blob: SharedWorker — that is
+         Vite's HMR reconnect ping, and `worker-src` falling back to `script-src 'self'`
+         is what stops it. It costs nothing but auto-reload after a dev-server restart,
+         and it is absent from the production bundle. Do NOT add `blob:` here to quieten
+         it: that would let the shipped app run script from a blob URL. -->
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'"

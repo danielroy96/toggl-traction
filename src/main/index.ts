@@ -260,6 +260,18 @@ class AppController {
       })
     }
 
+    /** Same, for handlers that act on the calling window (title-bar controls). */
+    const handleWindow = <T>(channel: string, fn: (win: BrowserWindow) => T): void => {
+      ipcMain.handle(channel, async (e): Promise<IpcResult<T | null>> => {
+        try {
+          const win = BrowserWindow.fromWebContents(e.sender)
+          return { ok: true, data: win && !win.isDestroyed() ? fn(win) : null }
+        } catch (err) {
+          return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' }
+        }
+      })
+    }
+
     handle(INVOKE.authSignIn, async (token) => {
       if (typeof token !== 'string' || !token.trim()) {
         throw new Error('Please enter your Toggl API token.')
@@ -342,6 +354,24 @@ class AppController {
       this.suggestions.googleCalendar.disconnect()
       return this.suggestions.googleCalendar.getStatus()
     })
+
+    // Window controls for the frameless main window's custom title bar. These
+    // act on whichever window made the call, so the same surface works for any
+    // window that draws its own chrome.
+    handleWindow(INVOKE.windowMinimize, (win) => {
+      win.minimize()
+      return null
+    })
+    handleWindow(INVOKE.windowToggleMaximize, (win) => {
+      if (win.isMaximized()) win.unmaximize()
+      else win.maximize()
+      return null
+    })
+    handleWindow(INVOKE.windowClose, (win) => {
+      win.close()
+      return null
+    })
+    handleWindow(INVOKE.windowGetState, (win) => ({ maximized: win.isMaximized() }))
 
     handle(INVOKE.miniShow, () => {
       this.mini.show()

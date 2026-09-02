@@ -84,6 +84,15 @@ export function installHttpBridge(): void {
       disconnect: () => rpc('calendar.disconnect'),
       onChange: (cb) => subscribe('calendar', cb as Listener)
     },
+    // No OS window behind a browser tab: the title bar renders, its controls
+    // do nothing.
+    window: {
+      minimize: async () => null,
+      toggleMaximize: async () => null,
+      close: async () => null,
+      getState: async () => ({ maximized: false }),
+      onChange: () => () => {}
+    },
     mini: {
       show: () => rpc('mini.show'),
       hide: () => rpc('mini.hide'),

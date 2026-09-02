@@ -1,5 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { JSX } from 'react'
 import type { TogglProject, TogglTask } from '../../../shared/types.js'
+import { useDismiss } from '../lib/useDismiss.js'
 
 interface Props {
   projectId: number | null
@@ -21,20 +23,45 @@ interface Props {
 
 interface Opt {
   key: string
+  /** Full "Project · Task" path: the trigger's label and the accessible name. */
   label: string
+  /** What the row shows — for a task, just its own name; the project is the
+   *  line above it. */
+  display: string
+  /** The two halves of `label`, so the trigger can truncate the project and
+   *  keep the task. Absent for "No project", which is neither. */
+  project?: string
+  task?: string
   projectId: number | null
   taskId: number | null
   color: string | null
-  search: string
+  /** True for a task, which renders indented under its project. */
+  nested: boolean
 }
+
+/**
+ * One line of the panel: either a selectable option, or a project acting purely
+ * as a heading for the tasks beneath it (used when the project itself did not
+ * match the search, so offering it as a choice would invite a mis-hit).
+ */
+type Row =
+  | { kind: 'option'; opt: Opt; index: number }
+  | { kind: 'group'; key: string; project: TogglProject }
 
 /**
  * Searchable Project + Task selector (accessible combobox).
  *
  * Replaces a native <select> — with many tasks a type-to-filter search is much
  * faster. A trigger button shows the current selection; opening reveals a search
- * box and a filtered listbox of "Project · Task" options. Keyboard: type to
- * filter, Up/Down to move, Enter to choose, Escape to close.
+ * box and a filtered listbox. Keyboard: type to filter, Up/Down to move, Enter
+ * to choose, Escape to close.
+ *
+ * The list is a hierarchy: each project appears once, with its tasks indented
+ * beneath it showing only their own names. Repeating "Project · Task" on every
+ * row spent the whole width of the panel on a name the reader had already seen
+ * several rows running, and the task — the part that actually tells the options
+ * apart — was what got ellipsised away. Options still carry the full path as
+ * their accessible name, so nothing is lost to a screen reader.
  */
 export function ProjectTaskPicker({
   projectId,
@@ -53,6 +80,7 @@ export function ProjectTaskPicker({
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const rootRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
 
@@ -66,53 +94,66 @@ export function ProjectTaskPicker({
     openChangeRef.current?.(open)
   }, [open])
 
-  const options = useMemo<Opt[]>(() => {
-    const opts: Opt[] = [
-      { key: 'none', label: 'No project', projectId: null, taskId: null, color: null, search: 'no project' }
-    ]
-    for (const p of projects) {
-      opts.push({
-        key: `p${p.id}`,
-        label: p.name,
-        projectId: p.id,
-        taskId: null,
-        color: p.color,
-        search: p.name.toLowerCase()
-      })
-      for (const t of tasks.filter((t) => t.project_id === p.id)) {
-        opts.push({
-          key: `t${p.id}-${t.id}`,
-          label: `${p.name} · ${t.name}`,
-          projectId: p.id,
-          taskId: t.id,
-          color: p.color,
-          search: `${p.name} ${t.name}`.toLowerCase()
-        })
-      }
+  const groups = useMemo(
+    () =>
+      projects.map((project) => ({
+        project,
+        tasks: tasks.filter((t) => t.project_id === project.id)
+      })),
+    [projects, tasks]
+  )
+
+  /** Every selectable option, unfiltered — resolves the current selection and
+   *  the initial keyboard position (the search box is empty on open). */
+  const allOptions = useMemo<Opt[]>(() => {
+    const out: Opt[] = [NO_PROJECT]
+    for (const { project, tasks: ts } of groups) {
+      out.push(projectOpt(project))
+      for (const t of ts) out.push(taskOpt(project, t))
     }
-    return opts
-  }, [projects, tasks])
+    return out
+  }, [groups])
 
   const selected =
-    options.find((o) => o.projectId === (projectId ?? null) && o.taskId === (taskId ?? null)) ??
-    options[0]!
+    allOptions.find(
+      (o) => o.projectId === (projectId ?? null) && o.taskId === (taskId ?? null)
+    ) ?? allOptions[0]!
 
-  const filtered = useMemo(() => {
+  /** The filtered panel contents: `rows` is what we draw, `options` is what the
+   *  keyboard walks (headings are skipped). */
+  const { rows, options } = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return q ? options.filter((o) => o.search.includes(q)) : options
-  }, [options, query])
+    const rows: Row[] = []
+    const options: Opt[] = []
+    const pushOption = (opt: Opt): void => {
+      rows.push({ kind: 'option', opt, index: options.length })
+      options.push(opt)
+    }
+
+    if (!q || 'no project'.includes(q)) pushOption(NO_PROJECT)
+
+    for (const { project, tasks: ts } of groups) {
+      const projectMatches = !q || project.name.toLowerCase().includes(q)
+      // Tasks match on "Project Task" so a query can still span both, as it
+      // could when every row spelled out the whole path.
+      const shownTasks =
+        q && !projectMatches
+          ? ts.filter((t) => `${project.name} ${t.name}`.toLowerCase().includes(q))
+          : ts
+      if (!projectMatches && shownTasks.length === 0) continue
+      if (projectMatches) pushOption(projectOpt(project))
+      else rows.push({ kind: 'group', key: `g${project.id}`, project })
+      for (const t of shownTasks) pushOption(taskOpt(project, t))
+    }
+    return { rows, options }
+  }, [groups, query])
 
   useEffect(() => setActive(0), [query])
 
-  // Close on outside interaction.
-  useEffect(() => {
-    if (!open) return
-    const onDown = (e: MouseEvent): void => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [open])
+  // Pointer press outside, focus leaving, or the window being deactivated.
+  // Focus is not restored for any of these: the user has already moved it (or
+  // left), and yanking it back to the trigger would fight them.
+  useDismiss(open, rootRef, () => setOpen(false))
 
   useEffect(() => {
     // preventScroll: focusing a control the browser thinks is off-screen (the
@@ -138,29 +179,52 @@ export function ProjectTaskPicker({
 
   const openPanel = (): void => {
     setQuery('')
-    setActive(Math.max(0, options.findIndex((o) => o.key === selected.key)))
+    setActive(Math.max(0, allOptions.findIndex((o) => o.key === selected.key)))
     setOpen(true)
+  }
+
+  /**
+   * Close and put focus back on the trigger. Used by every dismissal the user
+   * drives from the keyboard (Escape) or by choosing an option: focus is inside
+   * the panel, and the panel is about to unmount, so without this it would fall
+   * to <body> and the next Tab would restart from the top of the window.
+   */
+  const closeToTrigger = (): void => {
+    setOpen(false)
+    setQuery('')
+    // preventScroll for the same reason the search box uses it: in the mini
+    // window the control can briefly be off-screen, and focusing it would
+    // otherwise scroll an ancestor and drag the whole card.
+    triggerRef.current?.focus({ preventScroll: true })
   }
 
   const choose = (o: Opt): void => {
     onChange(o.projectId, o.taskId)
-    setOpen(false)
-    setQuery('')
+    closeToTrigger()
   }
 
-  const onKeyDown = (e: React.KeyboardEvent): void => {
+  // On the root, not the search box: Escape has to work wherever focus is
+  // inside the picker, and the panel holds more than one focusable element.
+  const onRootKeyDown = (e: React.KeyboardEvent): void => {
+    if (e.key === 'Escape' && open) {
+      e.preventDefault()
+      // Stop it here — in the entry editor this picker sits inside a modal that
+      // also closes on Escape, and one key press should dismiss one thing.
+      e.stopPropagation()
+      closeToTrigger()
+    }
+  }
+
+  const onSearchKeyDown = (e: React.KeyboardEvent): void => {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setActive((i) => Math.min(i + 1, filtered.length - 1))
+      setActive((i) => Math.min(i + 1, options.length - 1))
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       setActive((i) => Math.max(i - 1, 0))
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      if (filtered[active]) choose(filtered[active]!)
-    } else if (e.key === 'Escape') {
-      e.preventDefault()
-      setOpen(false)
+      if (options[active]) choose(options[active]!)
     }
   }
 
@@ -168,14 +232,19 @@ export function ProjectTaskPicker({
     <div
       className={`ptpick ${compact ? 'ptpick--compact' : ''} ${inline ? 'ptpick--inline' : ''}`}
       ref={rootRef}
+      onKeyDown={onRootKeyDown}
     >
       <button
         type="button"
+        ref={triggerRef}
         id={id}
         className="ptpick__trigger"
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`${ariaLabel}: ${selected.label}`}
+        // The trigger is narrow enough to ellipsise a full "Project · Task"
+        // path, so the whole thing has to be readable on hover too.
+        title={selected.label}
         onClick={() => (open ? setOpen(false) : openPanel())}
       >
         {/* Always shown: a project/task name is never displayed without the
@@ -185,7 +254,12 @@ export function ProjectTaskPicker({
           style={{ background: selected.color ?? 'var(--border-strong)' }}
           aria-hidden="true"
         />
-        <span className="ptpick__value">{selected.label}</span>
+        <span className="ptpick__value">
+          <span className="ptpick__value-project">{selected.project ?? selected.label}</span>
+          {selected.task && (
+            <span className="ptpick__value-task">{`· ${selected.task}`}</span>
+          )}
+        </span>
         <svg
           className="ptpick__caret"
           width="16"
@@ -207,13 +281,13 @@ export function ProjectTaskPicker({
             role="combobox"
             aria-expanded="true"
             aria-controls={`${uid}-list`}
-            aria-activedescendant={filtered[active] ? `${uid}-opt-${active}` : undefined}
+            aria-activedescendant={options[active] ? `${uid}-opt-${active}` : undefined}
             aria-autocomplete="list"
             aria-label="Search projects and tasks"
             placeholder="Search projects & tasks…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={onKeyDown}
+            onKeyDown={onSearchKeyDown}
           />
           <ul
             ref={listRef}
@@ -222,36 +296,106 @@ export function ProjectTaskPicker({
             role="listbox"
             aria-label={ariaLabel}
           >
-            {filtered.length === 0 && <li className="ptpick__empty">No matches</li>}
-            {filtered.map((o, i) => (
-              <li
-                key={o.key}
-                id={`${uid}-opt-${i}`}
-                role="option"
-                aria-selected={o.key === selected.key}
-                className={`ptpick__opt ${i === active ? 'ptpick__opt--active' : ''}`}
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  choose(o)
-                }}
-                onMouseEnter={() => setActive(i)}
-              >
-                <span
-                  className="project-dot"
-                  style={{ background: o.color ?? 'var(--border-strong)' }}
-                  aria-hidden="true"
-                />
-                <span className="ptpick__opt-label">{o.label}</span>
-                {o.key === selected.key && (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" />
-                  </svg>
-                )}
-              </li>
-            ))}
+            {options.length === 0 && <li className="ptpick__empty">No matches</li>}
+            {rows.map((row) =>
+              row.kind === 'group' ? (
+                <li key={row.key} className="ptpick__group" role="presentation">
+                  <span
+                    className="project-dot"
+                    style={{ background: row.project.color }}
+                    aria-hidden="true"
+                  />
+                  <span className="ptpick__opt-label">{row.project.name}</span>
+                </li>
+              ) : (
+                <li
+                  key={row.opt.key}
+                  id={`${uid}-opt-${row.index}`}
+                  role="option"
+                  aria-selected={row.opt.key === selected.key}
+                  /* A task row shows only its own name, so the accessible name
+                     keeps the project: never ambiguous read aloud. */
+                  aria-label={row.opt.nested ? row.opt.label : undefined}
+                  className={[
+                    'ptpick__opt',
+                    row.opt.nested ? 'ptpick__opt--task' : '',
+                    row.index === active ? 'ptpick__opt--active' : ''
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  style={
+                    row.opt.nested
+                      ? ({ '--guide': row.opt.color } as React.CSSProperties)
+                      : undefined
+                  }
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    choose(row.opt)
+                  }}
+                  onMouseEnter={() => setActive(row.index)}
+                >
+                  {!row.opt.nested && (
+                    <span
+                      className="project-dot"
+                      style={{ background: row.opt.color ?? 'var(--border-strong)' }}
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span className="ptpick__opt-label">{row.opt.display}</span>
+                  {row.opt.key === selected.key && (
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" />
+                    </svg>
+                  )}
+                </li>
+              )
+            )}
           </ul>
         </div>
       )}
     </div>
   )
+}
+
+const NO_PROJECT: Opt = {
+  key: 'none',
+  label: 'No project',
+  display: 'No project',
+  projectId: null,
+  taskId: null,
+  color: null,
+  nested: false
+}
+
+function projectOpt(p: TogglProject): Opt {
+  return {
+    key: `p${p.id}`,
+    label: p.name,
+    display: p.name,
+    project: p.name,
+    projectId: p.id,
+    taskId: null,
+    color: p.color,
+    nested: false
+  }
+}
+
+function taskOpt(p: TogglProject, t: TogglTask): Opt {
+  return {
+    key: `t${p.id}-${t.id}`,
+    label: `${p.name} · ${t.name}`,
+    display: t.name,
+    project: p.name,
+    task: t.name,
+    projectId: p.id,
+    taskId: t.id,
+    color: p.color,
+    nested: true
+  }
 }
