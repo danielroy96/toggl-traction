@@ -2,8 +2,9 @@
  * Headless end-to-end check of the mini timer's auto-fit in REAL Electron.
  * Creates the mini window exactly like the app (real preload, frameless),
  * stubs the IPC the renderer needs, actually resizes on mini:set-content-size,
- * then drives collapse/expand and reports the true window height vs the Start
- * button position. Window is hidden (show:false) so nothing pops up.
+ * then checks the always-visible fields fit, and that opening each inline
+ * dropdown (description autocomplete, project/task picker) grows the window
+ * instead of clipping the list.
  *
  * Run: node_modules/.bin/electron scripts/mini-e2e.mjs
  */
@@ -53,7 +54,14 @@ ipcMain.handle('timer:sync', () => ok({ running: null, pending: false, error: nu
 ipcMain.handle('settings:get', () => ok(settings))
 ipcMain.handle('projects:list', () => ok([{ id: 1, workspace_id: 100, name: 'PROJ – Platform', color: '#e08bd6', active: true }]))
 ipcMain.handle('tasks:list', () => ok([{ id: 10, workspace_id: 100, project_id: 1, name: 'Code review', active: true }]))
-ipcMain.handle('entries:recent', () => ok([]))
+// Recent entries feed the description autocomplete, so give it something to
+// suggest — otherwise the list never opens and the check is vacuous.
+ipcMain.handle('entries:recent', () =>
+  ok([
+    { id: 91, workspace_id: 100, description: 'PROJ-1 Review the API client', project_id: 1, task_id: 10, start: '2026-01-01T09:00:00Z', stop: '2026-01-01T10:00:00Z', duration: 3600 },
+    { id: 92, workspace_id: 100, description: 'PROJ-2 Standup', project_id: 1, task_id: null, start: '2026-01-01T08:45:00Z', stop: '2026-01-01T09:00:00Z', duration: 900 }
+  ])
+)
 ipcMain.handle('entry:update', () => ok({}))
 ipcMain.handle('timer:start', () => ok({}))
 ipcMain.handle('timer:stop', () => ok(null))
@@ -66,8 +74,10 @@ const measure = `(() => {
     header: r('.mini__header'),
     time: r('.mini__time'),
     playRound: r('.mini__btn'),
-    chevron: r('.mini__expand'),
-    primary: r('.mini__primary'),
+    desc: r('.autocomplete > .input'),
+    acList: r('.autocomplete__list'),
+    picker: r('.ptpick__trigger'),
+    ptPanel: r('.ptpick__panel'),
   };
 })()`
 
@@ -92,25 +102,42 @@ app.whenReady().then(async () => {
   await win.loadFile(join(root, 'out/renderer/mini.html'))
   await delay(1200) // React mount + useLayoutEffect + resize round-trip
 
-  const collapsed = await win.webContents.executeJavaScript(measure)
-  log('COLLAPSED:', JSON.stringify(collapsed))
-  const cClip = collapsed.playRound && collapsed.playRound.bottom > collapsed.winH
-  const cCentered = collapsed.playRound && Math.abs(collapsed.playRound.cy - collapsed.winH / 2) <= 2
-  log(`  collapsed play button clipped? ${cClip}   vertically centered? ${cCentered}`)
+  const idle = await win.webContents.executeJavaScript(measure)
+  log('IDLE:', JSON.stringify(idle))
+  const idleClip = idle.picker && idle.picker.bottom > idle.winH
+  log(`  idle: play centered in header? ${!!idle.playRound}  picker clipped? ${idleClip}`)
 
-  // Expand.
-  await win.webContents.executeJavaScript(`document.querySelector('.mini__expand').click(); true`)
+  // Open the description autocomplete (focus shows all recent entries).
+  await win.webContents.executeJavaScript(
+    `document.querySelector('.autocomplete > .input').focus(); true`
+  )
+  await delay(2000)
+  const acOpen = await win.webContents.executeJavaScript(measure)
+  log('AUTOCOMPLETE OPEN:', JSON.stringify(acOpen))
+  const acClip = acOpen.acList ? acOpen.acList.bottom > acOpen.winH : null
+  log(`  suggestion list present? ${!!acOpen.acList}  clipped? ${acClip}`)
+
+  // Close it, then open the project/task picker.
+  await win.webContents.executeJavaScript(
+    `document.querySelector('.autocomplete > .input').blur(); true`
+  )
+  await delay(600)
+  await win.webContents.executeJavaScript(
+    `document.querySelector('.ptpick__trigger').click(); true`
+  )
   await delay(2500) // well past any macOS resize animation
 
-  log('window size (main) after expand:', win.getSize().join('x'))
-  const expanded = await win.webContents.executeJavaScript(measure)
-  log('EXPANDED:', JSON.stringify(expanded))
-  const eClip = expanded.primary && expanded.primary.bottom > expanded.winH
-  log(`  expanded Start button bottom=${expanded.primary?.bottom} winH=${expanded.winH} -> clipped? ${eClip}`)
+  log('window size (main) after opening picker:', win.getSize().join('x'))
+  const ptOpen = await win.webContents.executeJavaScript(measure)
+  log('PICKER OPEN:', JSON.stringify(ptOpen))
+  const ptClip = ptOpen.ptPanel ? ptOpen.ptPanel.bottom > ptOpen.winH : null
+  log(`  picker panel bottom=${ptOpen.ptPanel?.bottom} winH=${ptOpen.winH} -> clipped? ${ptClip}`)
 
-  log('RESULT', JSON.stringify({ collapsedClip: cClip, collapsedCentered: cCentered, expandedClip: eClip }))
-  log('holding window open for screen capture…')
-  await delay(15000)
+  log('RESULT', JSON.stringify({ idleClip, acListClip: acClip, pickerPanelClip: ptClip }))
+  // Held open for screen capture; set MINI_E2E_HOLD_MS=0 to exit immediately.
+  const hold = Number(process.env['MINI_E2E_HOLD_MS'] ?? 15000)
+  if (hold > 0) log(`holding window open for ${hold}ms…`)
+  await delay(hold)
   app.quit()
 })
 
